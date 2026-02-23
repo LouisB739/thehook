@@ -1,8 +1,10 @@
 import json
 import pytest
 from pathlib import Path
+from click.testing import CliRunner
 
 from thehook.init import init_project
+from thehook.cli import main
 
 
 def test_init_creates_thehook_directory_structure(tmp_project):
@@ -93,3 +95,34 @@ def test_init_creates_claude_dir_if_missing(tmp_project):
     assert settings_path.exists()
     settings = json.loads(settings_path.read_text())
     assert "hooks" in settings
+
+
+# ---- CLI integration tests ----
+
+def test_cli_init_creates_structure(tmp_project):
+    """CLI: `thehook init --path <dir>` creates .thehook subdirectories"""
+    runner = CliRunner()
+    result = runner.invoke(main, ["init", "--path", str(tmp_project)])
+    assert result.exit_code == 0, result.output
+    assert "TheHook initialized" in result.output
+    assert (tmp_project / ".thehook" / "sessions").is_dir()
+    assert (tmp_project / ".thehook" / "knowledge").is_dir()
+    assert (tmp_project / ".thehook" / "chromadb").is_dir()
+
+
+def test_cli_init_shows_confirmation(tmp_project):
+    """CLI: `thehook init` prints hook registration confirmation"""
+    runner = CliRunner()
+    result = runner.invoke(main, ["init", "--path", str(tmp_project)])
+    assert result.exit_code == 0, result.output
+    assert "Hooks registered in .claude/settings.local.json" in result.output
+
+
+def test_cli_init_default_path(tmp_project):
+    """CLI: `thehook init` without --path uses the current directory"""
+    runner = CliRunner()
+    # Run with isolated filesystem so default "." resolves to a clean temp dir
+    with runner.isolated_filesystem():
+        result = runner.invoke(main, ["init"])
+        assert result.exit_code == 0, result.output
+        assert "TheHook initialized" in result.output
