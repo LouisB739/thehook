@@ -11,8 +11,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **SETUP-01**: User can run `thehook init` to wire SessionEnd and SessionStart hooks into Claude Code settings
 - [ ] **SETUP-02**: `thehook init` creates `.thehook/` directory structure (sessions/, knowledge/, chromadb/)
-- [ ] **SETUP-03**: User can configure behavior via `thehook.yaml` (token budget, consolidation threshold, active hooks)
-- [ ] **SETUP-04**: Config has sensible defaults — tool works without any YAML file present
+- [x] **SETUP-03**: User can configure behavior via `thehook.yaml` (token budget, consolidation threshold, active hooks)
+- [x] **SETUP-04**: Config has sensible defaults — tool works without any YAML file present
 
 ### Capture
 
@@ -80,8 +80,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | SETUP-01 | Phase 1 | Pending |
 | SETUP-02 | Phase 1 | Pending |
-| SETUP-03 | Phase 1 | Pending |
-| SETUP-04 | Phase 1 | Pending |
+| SETUP-03 | Phase 1 | Complete |
+| SETUP-04 | Phase 1 | Complete |
 | CAPT-01 | Phase 2 | Pending |
 | CAPT-02 | Phase 2 | Pending |
 | CAPT-03 | Phase 2 | Pending |

@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 1 of 4 (Setup)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-02-23 — Roadmap created; 4 phases derived from 19 v1 requirements
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-23 — Plan 01-01 complete: package scaffold + config system
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 12%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: —
+- Total plans completed: 1
+- Average duration: 2 min
+- Total execution time: 2 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-setup | 1 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: —
+- Last 5 plans: 2 min
 - Trend: —
 
 *Updated after each plan completion*
@@ -46,6 +46,9 @@ Recent decisions affecting current work:
 - [Pre-planning]: Markdown + ChromaDB dual storage — markdown is source of truth, ChromaDB is disposable index
 - [Pre-planning]: CLI headless (`claude -p`) as LLM engine — zero config, uses existing subscription
 - [Pre-planning]: Per-project `.thehook/` storage — project isolation, no cross-contamination
+- [01-01]: Config file is thehook.yaml at project root (not .thehook/config.yaml) per SETUP-03
+- [01-01]: deepcopy(DEFAULT_CONFIG) ensures no shared mutable state between load_config calls
+- [01-01]: hatchling build backend with src/ layout; entry point thehook = thehook.cli:main
 
 ### Pending Todos
 
@@ -59,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Roadmap created — ready to plan Phase 1
+Stopped at: Completed 01-01-PLAN.md — package scaffold + config system
 Resume file: None
