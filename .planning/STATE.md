@@ -10,25 +10,25 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 2 of 4 (Capture)
-Plan: 1 of 3 in current phase
-Status: Plan 02-01 complete — JSONL transcript parsing
-Last activity: 2026-02-23 — Plan 02-01 complete: JSONL transcript parsing with TDD
+Plan: 2 of 3 in current phase
+Status: Plan 02-02 complete — LLM extraction subprocess and session file writing
+Last activity: 2026-02-23 — Plan 02-02 complete: subprocess management, write_session_file, write_stub_summary (18 tests)
 
-Progress: [███░░░░░░░] 33%
+Progress: [████░░░░░░] 44%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 2 min
-- Total execution time: 6 min
+- Total execution time: 9 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-setup | 2 | 4 min | 2 min |
-| 02-capture | 1 | 2 min | 2 min |
+| 02-capture | 2 | 5 min | 2.5 min |
 
 **Recent Trend:**
 - Last 5 plans: 2 min
@@ -57,6 +57,11 @@ Recent decisions affecting current work:
 - [02-01]: Text blocks joined with \n (not \n\n) — preserves natural multi-block assistant message flow
 - [02-01]: read_hook_input returns {} on error — graceful degradation over exception propagation
 - [02-01]: MAX_TRANSCRIPT_CHARS = 50_000 as module-level constant — single source of truth for context limit
+- [02-02]: start_new_session=True used (not preexec_fn=os.setsid) — thread-safe Python 3.2+ equivalent
+- [02-02]: stdout.decode().strip() or None — falsy empty stdout treated as extraction failure, not empty file
+- [02-02]: proc.communicate() called after killpg — mandatory zombie reap for resource cleanup
+- [02-02]: write_stub_summary delegates to write_session_file — single write path, identical frontmatter format
+- [02-02]: EXTRACTION_TIMEOUT_SECONDS = 85 as module-level constant — single source of truth
 
 ### Pending Todos
 
@@ -69,5 +74,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 02-01-PLAN.md — JSONL transcript parsing with TDD (9 tests, 23 total)
+Stopped at: Completed 02-02-PLAN.md — LLM extraction subprocess and session file writing (18 tests, 32 total)
 Resume file: None

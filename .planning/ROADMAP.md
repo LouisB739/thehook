@@ -45,7 +45,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 Plans:
 - [x] 02-01-PLAN.md — JSONL transcript parsing with TDD (CAPT-01, CAPT-02)
-- [ ] 02-02-PLAN.md — LLM extraction subprocess and graceful degradation with TDD (CAPT-03, CAPT-05)
+- [x] 02-02-PLAN.md — LLM extraction subprocess and graceful degradation with TDD (CAPT-03, CAPT-05)
 - [ ] 02-03-PLAN.md — Extraction prompt, capture orchestration, and CLI wiring (CAPT-04, CAPT-06)
 
 ### Phase 3: Storage
@@ -78,6 +78,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Setup | 2/2 | Complete   | 2026-02-23 |
-| 2. Capture | 1/3 | In progress | - |
+| 2. Capture | 2/3 | In progress | - |
 | 3. Storage | 0/TBD | Not started | - |
 | 4. Retrieval | 0/TBD | Not started | - |
