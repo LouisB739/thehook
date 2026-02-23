@@ -10,9 +10,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from thehook.capture import (
+    EXTRACTION_PROMPT_TEMPLATE,
     assemble_transcript_text,
     parse_transcript,
     read_hook_input,
+    run_capture,
     run_claude_extraction,
     write_session_file,
     write_stub_summary,
@@ -233,3 +235,129 @@ def test_run_claude_extraction_returns_none_on_oserror(monkeypatch):
     )
     result = run_claude_extraction("test prompt")
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Extraction prompt tests (CAPT-06)
+# ---------------------------------------------------------------------------
+
+def test_extraction_prompt_targets_conventions():
+    """EXTRACTION_PROMPT_TEMPLATE must mention 'conventions' and 'decisions' as targets."""
+    assert "conventions" in EXTRACTION_PROMPT_TEMPLATE.lower()
+    assert "decisions" in EXTRACTION_PROMPT_TEMPLATE.lower()
+
+
+def test_extraction_prompt_excludes_observations():
+    """EXTRACTION_PROMPT_TEMPLATE must NOT contain the word 'observations' (per CAPT-06)."""
+    assert "observations" not in EXTRACTION_PROMPT_TEMPLATE.lower()
+
+
+def test_extraction_prompt_has_all_four_sections():
+    """EXTRACTION_PROMPT_TEMPLATE must contain all four section headers."""
+    assert "## SUMMARY" in EXTRACTION_PROMPT_TEMPLATE
+    assert "## CONVENTIONS" in EXTRACTION_PROMPT_TEMPLATE
+    assert "## DECISIONS" in EXTRACTION_PROMPT_TEMPLATE
+    assert "## GOTCHAS" in EXTRACTION_PROMPT_TEMPLATE
+
+
+# ---------------------------------------------------------------------------
+# run_capture orchestration tests (CAPT-04)
+# ---------------------------------------------------------------------------
+
+def test_run_capture_success_writes_session_file(tmp_project, monkeypatch):
+    """run_capture writes a session .md file when extraction succeeds."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    hook_input = json.dumps({
+        "session_id": "test123",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+
+    extraction_result = (
+        "## SUMMARY\nTest session.\n\n"
+        "## CONVENTIONS\n- Use pytest\n\n"
+        "## DECISIONS\n- Chose Click\n\n"
+        "## GOTCHAS\nNone this session."
+    )
+    monkeypatch.setattr(
+        "thehook.capture.run_claude_extraction",
+        lambda prompt: extraction_result,
+    )
+
+    run_capture()
+
+    md_files = list(sessions_dir.glob("*.md"))
+    assert len(md_files) == 1, f"Expected 1 session file, got {len(md_files)}"
+    content = md_files[0].read_text()
+    assert "session_id: test123" in content
+    assert "## SUMMARY" in content
+    assert "## CONVENTIONS" in content
+
+
+def test_run_capture_extraction_failure_writes_stub(tmp_project, monkeypatch):
+    """run_capture writes a stub file when extraction returns None."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    hook_input = json.dumps({
+        "session_id": "test123",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+    monkeypatch.setattr("thehook.capture.run_claude_extraction", lambda prompt: None)
+
+    run_capture()
+
+    md_files = list(sessions_dir.glob("*.md"))
+    assert len(md_files) == 1
+    content = md_files[0].read_text()
+    assert "Extraction timeout" in content
+    assert "session_id: test123" in content
+
+
+def test_run_capture_empty_transcript_writes_stub(tmp_project, monkeypatch):
+    """run_capture writes a stub with 'empty transcript' when transcript file does not exist."""
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    hook_input = json.dumps({
+        "session_id": "test123",
+        "transcript_path": str(tmp_project / "nonexistent.jsonl"),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+
+    run_capture()
+
+    md_files = list(sessions_dir.glob("*.md"))
+    assert len(md_files) == 1
+    content = md_files[0].read_text()
+    assert "empty transcript" in content
+
+
+def test_run_capture_invalid_stdin_returns_silently(monkeypatch):
+    """run_capture returns silently and does not raise when stdin is not valid JSON."""
+    monkeypatch.setattr(sys, "stdin", io.StringIO("not json"))
+    # Should not raise
+    run_capture()
+
+
+# ---------------------------------------------------------------------------
+# CLI integration test
+# ---------------------------------------------------------------------------
+
+def test_cli_capture_command_exists():
+    """The 'capture' subcommand is registered in the CLI and shows help text."""
+    from click.testing import CliRunner
+    from thehook.cli import main
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["capture", "--help"])
+    assert result.exit_code == 0
+    assert "capture" in result.output.lower() or "extract" in result.output.lower()
