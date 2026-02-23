@@ -1,10 +1,15 @@
 """Transcript parsing and hook input reading for the capture pipeline."""
 
 import json
+import os
+import signal
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 MAX_TRANSCRIPT_CHARS = 50_000
+EXTRACTION_TIMEOUT_SECONDS = 85
 
 
 def read_hook_input() -> dict:
@@ -111,3 +116,107 @@ def assemble_transcript_text(messages: list[dict], max_chars: int = 50_000) -> s
         # Keep the last max_chars to preserve recent context
         full = "...[truncated]...\n\n" + full[-max_chars:]
     return full
+
+
+def run_claude_extraction(prompt: str) -> str | None:
+    """Run claude -p with the extraction prompt. Returns text output or None on failure.
+
+    Uses start_new_session=True to isolate the process group, then kills the
+    entire group on TimeoutExpired to prevent zombie claude processes.
+
+    Args:
+        prompt: The extraction prompt to pass to claude -p.
+
+    Returns:
+        str | None: Decoded stdout text on success (exit 0 with non-empty output),
+            None on timeout, non-zero exit, empty output, or OS error.
+    """
+    try:
+        proc = subprocess.Popen(
+            ["claude", "-p", prompt, "--tools", ""],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,  # new process group; killpg will reach all children
+        )
+        stdout, _ = proc.communicate(timeout=EXTRACTION_TIMEOUT_SECONDS)
+        if proc.returncode == 0:
+            return stdout.decode("utf-8", errors="replace").strip() or None
+        return None
+    except subprocess.TimeoutExpired:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        proc.communicate()  # reap zombie to avoid resource leaks
+        return None
+    except (OSError, FileNotFoundError):
+        return None
+
+
+def write_session_file(
+    sessions_dir: Path,
+    session_id: str,
+    transcript_path: str,
+    content: str,
+) -> Path:
+    """Write structured markdown with YAML frontmatter to the sessions directory.
+
+    Creates the sessions directory if it does not exist. The filename is derived
+    from the current UTC date and the first 8 characters of the session_id.
+
+    Args:
+        sessions_dir: Directory where session files are stored (e.g. .thehook/sessions).
+        session_id: Unique session identifier from the hook input.
+        transcript_path: Path to the JSONL transcript file.
+        content: Markdown body content (extraction result or stub).
+
+    Returns:
+        Path: Path to the written session file.
+    """
+    timestamp = datetime.now(timezone.utc).isoformat()
+    safe_id = session_id[:8] if len(session_id) > 8 else session_id
+    filename = f"{timestamp[:10]}-{safe_id}.md"
+
+    frontmatter = (
+        f"---\n"
+        f"session_id: {session_id}\n"
+        f"timestamp: {timestamp}\n"
+        f"transcript_path: {transcript_path}\n"
+        f"---\n\n"
+    )
+
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    output_path = sessions_dir / filename
+    output_path.write_text(frontmatter + content)
+    return output_path
+
+
+def write_stub_summary(
+    sessions_dir: Path,
+    session_id: str,
+    transcript_path: str,
+    message_count: int,
+    reason: str = "timeout",
+) -> Path:
+    """Write a stub summary when extraction fails or times out.
+
+    The stub contains all four structured sections (SUMMARY, CONVENTIONS,
+    DECISIONS, GOTCHAS) with minimal metadata indicating the failure reason
+    and message count. This ensures every session produces a file even when
+    LLM extraction is unavailable.
+
+    Args:
+        sessions_dir: Directory where session files are stored.
+        session_id: Unique session identifier from the hook input.
+        transcript_path: Path to the JSONL transcript file.
+        message_count: Number of messages parsed from the transcript.
+        reason: Failure reason label ('timeout', 'error', etc.).
+
+    Returns:
+        Path: Path to the written stub file.
+    """
+    stub_content = (
+        f"## SUMMARY\n"
+        f"Extraction {reason}. Session had {message_count} messages.\n\n"
+        f"## CONVENTIONS\nNone this session.\n\n"
+        f"## DECISIONS\nNone this session.\n\n"
+        f"## GOTCHAS\nNone this session.\n"
+    )
+    return write_session_file(sessions_dir, session_id, transcript_path, stub_content)
