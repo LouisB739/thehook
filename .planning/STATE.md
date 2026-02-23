@@ -5,33 +5,34 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** The agent remembers what matters — conventions, decisions, and project history — without the developer lifting a finger.
-**Current focus:** Phase 1 — Setup (COMPLETE)
+**Current focus:** Phase 2 — Capture (in progress)
 
 ## Current Position
 
-Phase: 1 of 4 (Setup)
-Plan: 2 of 2 in current phase
-Status: Phase complete — ready for Phase 2
-Last activity: 2026-02-23 — Plan 01-02 complete: init command + hook registration
+Phase: 2 of 4 (Capture)
+Plan: 1 of 3 in current phase
+Status: Plan 02-01 complete — JSONL transcript parsing
+Last activity: 2026-02-23 — Plan 02-01 complete: JSONL transcript parsing with TDD
 
-Progress: [██░░░░░░░░] 25%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
+- Total plans completed: 3
 - Average duration: 2 min
-- Total execution time: 4 min
+- Total execution time: 6 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-setup | 2 | 4 min | 2 min |
+| 02-capture | 1 | 2 min | 2 min |
 
 **Recent Trend:**
 - Last 5 plans: 2 min
-- Trend: —
+- Trend: stable
 
 *Updated after each plan completion*
 
@@ -52,6 +53,10 @@ Recent decisions affecting current work:
 - [01-02]: SessionStart matcher set to "startup" only — prevents double-injection on session resume
 - [01-02]: HOOK_CONFIG as module-level constant for testability and reuse
 - [01-02]: init_project() writes hooks key unconditionally, preserving all other existing settings keys
+- [02-01]: isinstance(raw_content, list) branch detects assistant content shape — more robust than role-based check
+- [02-01]: Text blocks joined with \n (not \n\n) — preserves natural multi-block assistant message flow
+- [02-01]: read_hook_input returns {} on error — graceful degradation over exception propagation
+- [02-01]: MAX_TRANSCRIPT_CHARS = 50_000 as module-level constant — single source of truth for context limit
 
 ### Pending Todos
 
@@ -59,11 +64,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Research]: Transcript JSONL content shape variation should be confirmed with a real transcript fixture on day one of Phase 2
-- [01-02 RESOLVED]: SessionStart matcher concern resolved — using "startup" matcher only, confirmed working
+- [02-01 RESOLVED]: Transcript JSONL content shape confirmed with fixture — string for user, array-of-blocks for assistant; research was accurate
 
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 01-02-PLAN.md — init command + hook registration (Phase 1 complete)
+Stopped at: Completed 02-01-PLAN.md — JSONL transcript parsing with TDD (9 tests, 23 total)
 Resume file: None
