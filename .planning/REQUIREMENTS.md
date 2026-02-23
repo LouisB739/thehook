@@ -78,31 +78,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SETUP-01 | — | Pending |
-| SETUP-02 | — | Pending |
-| SETUP-03 | — | Pending |
-| SETUP-04 | — | Pending |
-| CAPT-01 | — | Pending |
-| CAPT-02 | — | Pending |
-| CAPT-03 | — | Pending |
-| CAPT-04 | — | Pending |
-| CAPT-05 | — | Pending |
-| CAPT-06 | — | Pending |
-| STOR-01 | — | Pending |
-| STOR-02 | — | Pending |
-| STOR-03 | — | Pending |
-| STOR-04 | — | Pending |
-| STOR-05 | — | Pending |
-| RETR-01 | — | Pending |
-| RETR-02 | — | Pending |
-| RETR-03 | — | Pending |
-| RETR-04 | — | Pending |
+| SETUP-01 | Phase 1 | Pending |
+| SETUP-02 | Phase 1 | Pending |
+| SETUP-03 | Phase 1 | Pending |
+| SETUP-04 | Phase 1 | Pending |
+| CAPT-01 | Phase 2 | Pending |
+| CAPT-02 | Phase 2 | Pending |
+| CAPT-03 | Phase 2 | Pending |
+| CAPT-04 | Phase 2 | Pending |
+| CAPT-05 | Phase 2 | Pending |
+| CAPT-06 | Phase 2 | Pending |
+| STOR-01 | Phase 3 | Pending |
+| STOR-02 | Phase 3 | Pending |
+| STOR-03 | Phase 3 | Pending |
+| STOR-04 | Phase 3 | Pending |
+| STOR-05 | Phase 3 | Pending |
+| RETR-01 | Phase 4 | Pending |
+| RETR-02 | Phase 4 | Pending |
+| RETR-03 | Phase 4 | Pending |
+| RETR-04 | Phase 4 | Pending |
 
 **Coverage:**
 - v1 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19 (pending roadmap creation)
+- Mapped to phases: 19
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-23*
-*Last updated: 2026-02-23 after initial definition*
+*Last updated: 2026-02-23 after roadmap creation*
