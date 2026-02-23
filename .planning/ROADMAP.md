@@ -13,7 +13,7 @@ TheHook is built in four phases that follow the natural dependency chain of the 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Setup** - `thehook init` wires hooks and creates project structure; config loads with sensible defaults (completed 2026-02-23)
-- [ ] **Phase 2: Capture** - SessionEnd hook reads transcript, calls `claude -p`, and extracts structured knowledge with graceful degradation
+- [x] **Phase 2: Capture** - SessionEnd hook reads transcript, calls `claude -p`, and extracts structured knowledge with graceful degradation (completed 2026-02-23)
 - [ ] **Phase 3: Storage** - Extracted knowledge is written to markdown files and indexed in ChromaDB; reindex rebuilds from markdown
 - [ ] **Phase 4: Retrieval** - SessionStart injects relevant context; `thehook recall` enables natural language search
 
@@ -78,6 +78,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Setup | 2/2 | Complete   | 2026-02-23 |
-| 2. Capture | 2/3 | In progress | - |
+| 2. Capture | 3/3 | Complete   | 2026-02-23 |
 | 3. Storage | 0/TBD | Not started | - |
 | 4. Retrieval | 0/TBD | Not started | - |

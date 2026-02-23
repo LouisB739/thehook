@@ -10,25 +10,25 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 2 of 4 (Capture)
-Plan: 2 of 3 in current phase
-Status: Plan 02-02 complete — LLM extraction subprocess and session file writing
-Last activity: 2026-02-23 — Plan 02-02 complete: subprocess management, write_session_file, write_stub_summary (18 tests)
+Plan: 3 of 3 in current phase
+Status: Plan 02-03 complete — Extraction prompt, run_capture orchestration, and CLI capture command (Phase 2 complete)
+Last activity: 2026-02-23 — Plan 02-03 complete: EXTRACTION_PROMPT_TEMPLATE, run_capture, CLI capture subcommand (26 tests)
 
-Progress: [████░░░░░░] 44%
+Progress: [█████░░░░░] 56%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
+- Total plans completed: 5
 - Average duration: 2 min
-- Total execution time: 9 min
+- Total execution time: 11 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-setup | 2 | 4 min | 2 min |
-| 02-capture | 2 | 5 min | 2.5 min |
+| 02-capture | 3 | 7 min | 2.3 min |
 
 **Recent Trend:**
 - Last 5 plans: 2 min
@@ -62,6 +62,11 @@ Recent decisions affecting current work:
 - [02-02]: proc.communicate() called after killpg — mandatory zombie reap for resource cleanup
 - [02-02]: write_stub_summary delegates to write_session_file — single write path, identical frontmatter format
 - [02-02]: EXTRACTION_TIMEOUT_SECONDS = 85 as module-level constant — single source of truth
+- [02-03]: EXTRACTION_PROMPT_TEMPLATE uses 'conventions' and 'decisions' as extraction targets — excludes 'observations' per CAPT-06
+- [02-03]: run_capture uses cwd from hook input (not os.getcwd()) — hook may be invoked from a different shell directory
+- [02-03]: Empty transcript produces stub with reason='empty transcript' — distinguishes from timeout in stub content
+- [02-03]: run_capture returns silently on bad JSON stdin — no exception propagation to hook runner
+- [02-03]: CLI capture command has no options — all input comes from stdin, matching SessionEnd hook invocation pattern
 
 ### Pending Todos
 
@@ -74,5 +79,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 02-02-PLAN.md — LLM extraction subprocess and session file writing (18 tests, 32 total)
+Stopped at: Completed 02-03-PLAN.md — Extraction prompt, run_capture orchestration, CLI capture command (26 tests, 40 total) — Phase 2 complete
 Resume file: None

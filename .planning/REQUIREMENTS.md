@@ -19,9 +19,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CAPT-01**: SessionEnd hook reads `transcript_path` from stdin JSON and parses JSONL transcript
 - [x] **CAPT-02**: JSONL parser handles both string content (user messages) and array-of-blocks content (assistant messages)
 - [x] **CAPT-03**: LLM extraction calls `claude -p` via subprocess (Popen + killpg process group, 85s hard timeout)
-- [ ] **CAPT-04**: Extraction produces structured markdown: session summary, conventions discovered, architecture decisions
+- [x] **CAPT-04**: Extraction produces structured markdown: session summary, conventions discovered, architecture decisions
 - [x] **CAPT-05**: On timeout or LLM failure, a stub summary is written with raw transcript metadata (graceful degradation)
-- [ ] **CAPT-06**: Extraction prompt targets specific knowledge types (conventions, ADRs) — not raw observation capture
+- [x] **CAPT-06**: Extraction prompt targets specific knowledge types (conventions, ADRs) — not raw observation capture
 
 ### Storage
 
@@ -85,9 +85,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CAPT-01 | Phase 2 | Complete |
 | CAPT-02 | Phase 2 | Complete |
 | CAPT-03 | Phase 2 | Complete |
-| CAPT-04 | Phase 2 | Pending |
+| CAPT-04 | Phase 2 | Complete |
 | CAPT-05 | Phase 2 | Complete |
-| CAPT-06 | Phase 2 | Pending |
+| CAPT-06 | Phase 2 | Complete |
 | STOR-01 | Phase 3 | Pending |
 | STOR-02 | Phase 3 | Pending |
 | STOR-03 | Phase 3 | Pending |
