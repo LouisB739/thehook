@@ -57,7 +57,10 @@ Plans:
   2. Every session markdown file is indexed in ChromaDB with metadata fields (`session_id`, `type`, `timestamp`) enabling filtered queries
   3. ChromaDB is stored locally in `.thehook/chromadb/` using `PersistentClient` — no server process required
   4. Running `thehook reindex` drops the ChromaDB collection and recreates it from all markdown files in `.thehook/sessions/` — the index is always fully reconstructible
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 03-01-PLAN.md — ChromaDB storage module with TDD (STOR-02, STOR-03, STOR-04, STOR-05)
+- [ ] 03-02-PLAN.md — CLI reindex command and capture pipeline integration (STOR-01, STOR-03, STOR-05)
 
 ### Phase 4: Retrieval
 **Goal**: The memory loop is closed — relevant past knowledge is automatically injected at session start and searchable on demand
@@ -79,5 +82,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Setup | 2/2 | Complete   | 2026-02-23 |
 | 2. Capture | 3/3 | Complete   | 2026-02-23 |
-| 3. Storage | 0/TBD | Not started | - |
+| 3. Storage | 0/2 | Not started | - |
 | 4. Retrieval | 0/TBD | Not started | - |
