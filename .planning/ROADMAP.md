@@ -30,7 +30,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. A `thehook.yaml` file with custom values (token budget, consolidation threshold, active hooks) is loaded and applied over defaults
 **Plans**: 2 plans
 - [x] 01-01-PLAN.md — Package scaffold + config system (SETUP-03, SETUP-04)
-- [ ] 01-02-PLAN.md — Init command + hook registration (SETUP-01, SETUP-02)
+- [x] 01-02-PLAN.md — Init command + hook registration (SETUP-01, SETUP-02)
 
 ### Phase 2: Capture
 **Goal**: At every Claude Code session end, conversation knowledge is automatically extracted and ready to store
@@ -42,7 +42,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Both user message content (string) and assistant message content (array of blocks) are parsed correctly
   4. If `claude -p` hangs or exceeds the 85-second timeout, a stub summary is written with transcript metadata and the hook exits cleanly — no silent failures
   5. The extraction prompt targets conventions and architecture decisions specifically, not general observations
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 02-01-PLAN.md — JSONL transcript parsing with TDD (CAPT-01, CAPT-02)
+- [ ] 02-02-PLAN.md — LLM extraction subprocess and graceful degradation with TDD (CAPT-03, CAPT-05)
+- [ ] 02-03-PLAN.md — Extraction prompt, capture orchestration, and CLI wiring (CAPT-04, CAPT-06)
 
 ### Phase 3: Storage
 **Goal**: Extracted knowledge is durably persisted as human-readable markdown and semantically indexed in ChromaDB
@@ -74,6 +78,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Setup | 2/2 | Complete   | 2026-02-23 |
-| 2. Capture | 0/TBD | Not started | - |
+| 2. Capture | 0/3 | Not started | - |
 | 3. Storage | 0/TBD | Not started | - |
 | 4. Retrieval | 0/TBD | Not started | - |
