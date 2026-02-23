@@ -11,6 +11,39 @@ from pathlib import Path
 MAX_TRANSCRIPT_CHARS = 50_000
 EXTRACTION_TIMEOUT_SECONDS = 85
 
+EXTRACTION_PROMPT_TEMPLATE = """\
+You are a technical knowledge extractor. Analyze the following Claude session transcript and extract concrete, reusable knowledge from it.
+
+Focus exclusively on:
+- **conventions**: coding patterns, style choices, naming standards, and structural rules established during the session
+- **decisions**: architectural and implementation choices made, and the reasoning behind them
+- **gotchas**: non-obvious pitfalls, edge cases, or mistakes discovered and resolved
+
+Do NOT summarise every action taken. Only extract what would genuinely help a developer picking up this project later.
+
+## Output format
+
+Respond with exactly these four sections. If a section has nothing to report, write "None this session." under it.
+
+## SUMMARY
+One or two sentences describing what was accomplished in this session.
+
+## CONVENTIONS
+A bullet list of concrete conventions established or reinforced. Only include concrete conventions — things like "use X not Y", "files go in Z directory", "always do A before B". Skip generic best practices.
+
+## DECISIONS
+A bullet list of decisions that are specific to this project — technology choices, trade-offs accepted, scope limitations. Only include decisions that are specific to this project, not general software engineering principles.
+
+## GOTCHAS
+A bullet list of non-obvious issues, edge cases, or traps encountered. Include what the symptom was and how it was resolved.
+
+---
+
+## Session transcript
+
+{transcript_text}
+"""
+
 
 def read_hook_input() -> dict:
     """Read the SessionEnd JSON payload from stdin.
@@ -220,3 +253,40 @@ def write_stub_summary(
         f"## GOTCHAS\nNone this session.\n"
     )
     return write_session_file(sessions_dir, session_id, transcript_path, stub_content)
+
+
+def run_capture() -> None:
+    """Orchestrate the full SessionEnd capture pipeline.
+
+    Reads hook input from stdin, parses the JSONL transcript, runs LLM
+    extraction via run_claude_extraction, and writes a session file. On any
+    failure path (bad stdin, empty transcript, extraction failure), writes a
+    stub summary so every session always produces a file.
+
+    Uses cwd from hook input as the project directory to avoid being affected
+    by the shell's current working directory at hook invocation time.
+    """
+    hook_input = read_hook_input()
+    if not hook_input:
+        return
+
+    session_id = hook_input.get("session_id", "unknown")
+    transcript_path = hook_input.get("transcript_path", "")
+    cwd = hook_input.get("cwd", ".")
+
+    # Use project dir from hook input — hook may run from a different cwd
+    sessions_dir = Path(cwd) / ".thehook" / "sessions"
+
+    messages = parse_transcript(transcript_path)
+    if not messages:
+        write_stub_summary(sessions_dir, session_id, transcript_path, 0, reason="empty transcript")
+        return
+
+    transcript_text = assemble_transcript_text(messages, max_chars=MAX_TRANSCRIPT_CHARS)
+    prompt = EXTRACTION_PROMPT_TEMPLATE.format(transcript_text=transcript_text)
+
+    result = run_claude_extraction(prompt)
+    if result:
+        write_session_file(sessions_dir, session_id, transcript_path, result)
+    else:
+        write_stub_summary(sessions_dir, session_id, transcript_path, len(messages), reason="timeout")

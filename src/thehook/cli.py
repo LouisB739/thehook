@@ -18,3 +18,10 @@ def init(path):
     init_project(project_dir)
     click.echo(f"TheHook initialized in {project_dir / '.thehook'}")
     click.echo("Hooks registered in .claude/settings.local.json")
+
+
+@main.command()
+def capture():
+    """Extract knowledge from the completed session transcript (called by SessionEnd hook)."""
+    from thehook.capture import run_capture
+    run_capture()
