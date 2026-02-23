@@ -28,7 +28,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Running `thehook init` registers SessionEnd and SessionStart hooks in `~/.claude/settings.json` and the user sees confirmation
   3. TheHook works without any `thehook.yaml` file present — sensible defaults are applied silently
   4. A `thehook.yaml` file with custom values (token budget, consolidation threshold, active hooks) is loaded and applied over defaults
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 01-01-PLAN.md — Package scaffold + config system (SETUP-03, SETUP-04)
+- [ ] 01-02-PLAN.md — Init command + hook registration (SETUP-01, SETUP-02)
 
 ### Phase 2: Capture
 **Goal**: At every Claude Code session end, conversation knowledge is automatically extracted and ready to store
@@ -71,7 +73,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Setup | 0/TBD | Not started | - |
+| 1. Setup | 0/2 | Planned | - |
 | 2. Capture | 0/TBD | Not started | - |
 | 3. Storage | 0/TBD | Not started | - |
 | 4. Retrieval | 0/TBD | Not started | - |
