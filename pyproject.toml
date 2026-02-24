@@ -9,6 +9,7 @@ requires-python = ">=3.11"
 dependencies = [
     "click>=8.1",
     "pyyaml>=6.0",
+    "chromadb>=1.0",
 ]
 
 [project.scripts]

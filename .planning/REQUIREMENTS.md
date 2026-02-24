@@ -25,18 +25,18 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Storage
 
-- [ ] **STOR-01**: Session knowledge is written as structured markdown files in `.thehook/sessions/`
-- [ ] **STOR-02**: Markdown files include frontmatter with session_id, timestamp, and source transcript path
-- [ ] **STOR-03**: ChromaDB indexes all markdown knowledge with metadata (session_id, type, timestamp)
-- [ ] **STOR-04**: ChromaDB uses `PersistentClient` with local storage in `.thehook/chromadb/`
-- [ ] **STOR-05**: User can run `thehook reindex` to drop and recreate ChromaDB from markdown files
+- [x] **STOR-01**: Session knowledge is written as structured markdown files in `.thehook/sessions/`
+- [x] **STOR-02**: Markdown files include frontmatter with session_id, timestamp, and source transcript path
+- [x] **STOR-03**: ChromaDB indexes all markdown knowledge with metadata (session_id, type, timestamp)
+- [x] **STOR-04**: ChromaDB uses `PersistentClient` with local storage in `.thehook/chromadb/`
+- [x] **STOR-05**: User can run `thehook reindex` to drop and recreate ChromaDB from markdown files
 
 ### Retrieval
 
-- [ ] **RETR-01**: SessionStart hook queries ChromaDB for context relevant to the current project
-- [ ] **RETR-02**: Injected context is hard-capped at 2,000 tokens regardless of knowledge base size
-- [ ] **RETR-03**: SessionStart outputs valid `hookSpecificOutput.additionalContext` JSON to stdout
-- [ ] **RETR-04**: User can run `thehook recall <query>` for natural language search over stored knowledge
+- [x] **RETR-01**: SessionStart hook queries ChromaDB for context relevant to the current project
+- [x] **RETR-02**: Injected context is hard-capped at 2,000 tokens regardless of knowledge base size
+- [x] **RETR-03**: SessionStart outputs valid `hookSpecificOutput.additionalContext` JSON to stdout
+- [x] **RETR-04**: User can run `thehook recall <query>` for natural language search over stored knowledge
 
 ## v2 Requirements
 
@@ -88,15 +88,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CAPT-04 | Phase 2 | Complete |
 | CAPT-05 | Phase 2 | Complete |
 | CAPT-06 | Phase 2 | Complete |
-| STOR-01 | Phase 3 | Pending |
-| STOR-02 | Phase 3 | Pending |
-| STOR-03 | Phase 3 | Pending |
-| STOR-04 | Phase 3 | Pending |
-| STOR-05 | Phase 3 | Pending |
-| RETR-01 | Phase 4 | Pending |
-| RETR-02 | Phase 4 | Pending |
-| RETR-03 | Phase 4 | Pending |
-| RETR-04 | Phase 4 | Pending |
+| STOR-01 | Phase 3 | Complete |
+| STOR-02 | Phase 3 | Complete |
+| STOR-03 | Phase 3 | Complete |
+| STOR-04 | Phase 3 | Complete |
+| STOR-05 | Phase 3 | Complete |
+| RETR-01 | Phase 4 | Complete |
+| RETR-02 | Phase 4 | Complete |
+| RETR-03 | Phase 4 | Complete |
+| RETR-04 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 19 total

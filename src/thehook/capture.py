@@ -279,7 +279,13 @@ def run_capture() -> None:
 
     messages = parse_transcript(transcript_path)
     if not messages:
-        write_stub_summary(sessions_dir, session_id, transcript_path, 0, reason="empty transcript")
+        session_path = write_stub_summary(sessions_dir, session_id, transcript_path, 0, reason="empty transcript")
+        try:
+            from thehook.storage import index_session_file
+            project_dir = Path(cwd)
+            index_session_file(project_dir, session_path)
+        except Exception:
+            pass  # ChromaDB failure must never break capture pipeline
         return
 
     transcript_text = assemble_transcript_text(messages, max_chars=MAX_TRANSCRIPT_CHARS)
@@ -287,6 +293,18 @@ def run_capture() -> None:
 
     result = run_claude_extraction(prompt)
     if result:
-        write_session_file(sessions_dir, session_id, transcript_path, result)
+        session_path = write_session_file(sessions_dir, session_id, transcript_path, result)
+        try:
+            from thehook.storage import index_session_file
+            project_dir = Path(cwd)
+            index_session_file(project_dir, session_path)
+        except Exception:
+            pass  # ChromaDB failure must never break capture pipeline
     else:
-        write_stub_summary(sessions_dir, session_id, transcript_path, len(messages), reason="timeout")
+        session_path = write_stub_summary(sessions_dir, session_id, transcript_path, len(messages), reason="timeout")
+        try:
+            from thehook.storage import index_session_file
+            project_dir = Path(cwd)
+            index_session_file(project_dir, session_path)
+        except Exception:
+            pass  # ChromaDB failure must never break capture pipeline

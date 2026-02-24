@@ -5,7 +5,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -361,3 +361,122 @@ def test_cli_capture_command_exists():
     result = runner.invoke(main, ["capture", "--help"])
     assert result.exit_code == 0
     assert "capture" in result.output.lower() or "extract" in result.output.lower()
+
+
+# ---------------------------------------------------------------------------
+# Storage integration tests — index_session_file wiring in run_capture
+# ---------------------------------------------------------------------------
+
+def test_run_capture_calls_index_session_file(tmp_project, monkeypatch):
+    """run_capture calls index_session_file after a successful extraction write."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    hook_input = json.dumps({
+        "session_id": "test-index-01",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+
+    extraction_result = (
+        "## SUMMARY\nTest session.\n\n"
+        "## CONVENTIONS\n- Use pytest\n\n"
+        "## DECISIONS\n- Chose Click\n\n"
+        "## GOTCHAS\nNone this session."
+    )
+    monkeypatch.setattr(
+        "thehook.capture.run_claude_extraction",
+        lambda prompt: extraction_result,
+    )
+
+    index_calls = []
+
+    def fake_index(project_dir, session_path):
+        index_calls.append((project_dir, session_path))
+
+    with patch("thehook.storage.index_session_file", fake_index):
+        run_capture()
+
+    assert len(index_calls) == 1, f"Expected 1 index call, got {len(index_calls)}"
+    project_dir_used, session_path_used = index_calls[0]
+    assert project_dir_used == tmp_project
+    assert session_path_used.suffix == ".md"
+    assert session_path_used.exists()
+
+
+def test_run_capture_index_failure_does_not_crash(tmp_project, monkeypatch):
+    """run_capture completes without raising when index_session_file raises an exception."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    hook_input = json.dumps({
+        "session_id": "test-index-crash",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+    monkeypatch.setattr(
+        "thehook.capture.run_claude_extraction",
+        lambda prompt: "## SUMMARY\nOK.",
+    )
+
+    def exploding_index(project_dir, session_path):
+        raise RuntimeError("ChromaDB is down")
+
+    with patch("thehook.storage.index_session_file", exploding_index):
+        # Must NOT raise
+        run_capture()
+
+    # Session file was still written despite index failure
+    md_files = list((tmp_project / ".thehook" / "sessions").glob("*.md"))
+    assert len(md_files) == 1
+
+
+def test_run_capture_stub_also_indexes(tmp_project, monkeypatch):
+    """run_capture calls index_session_file for stub files written on extraction failure."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    hook_input = json.dumps({
+        "session_id": "test-stub-index",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+    # Trigger stub path by returning None from extraction
+    monkeypatch.setattr(
+        "thehook.capture.run_claude_extraction",
+        lambda prompt: None,
+    )
+
+    index_calls = []
+
+    def fake_index(project_dir, session_path):
+        index_calls.append((project_dir, session_path))
+
+    with patch("thehook.storage.index_session_file", fake_index):
+        run_capture()
+
+    assert len(index_calls) == 1, f"Expected 1 index call for stub, got {len(index_calls)}"
+    _, session_path_used = index_calls[0]
+    # Stub file should exist and contain the timeout reason
+    assert session_path_used.exists()
+    assert "timeout" in session_path_used.read_text()
+
+
+def test_cli_reindex_command(tmp_path, monkeypatch):
+    """thehook reindex --path <dir> prints the indexed file count."""
+    from click.testing import CliRunner
+    from thehook.cli import main
+
+    # Mock the storage.reindex function so no real ChromaDB is needed
+    with patch("thehook.storage.reindex", return_value=3) as mock_reindex:
+        runner = CliRunner()
+        result = runner.invoke(main, ["reindex", "--path", str(tmp_path)])
+
+    assert result.exit_code == 0, f"Non-zero exit: {result.output}"
+    assert "Reindexed 3 session files." in result.output

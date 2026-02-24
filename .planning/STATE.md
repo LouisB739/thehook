@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** The agent remembers what matters — conventions, decisions, and project history — without the developer lifting a finger.
-**Current focus:** Phase 2 — Capture (in progress)
+**Current focus:** Phase 4 — Retrieval (complete)
 
 ## Current Position
 
-Phase: 2 of 4 (Capture)
-Plan: 3 of 3 in current phase
-Status: Plan 02-03 complete — Extraction prompt, run_capture orchestration, and CLI capture command (Phase 2 complete)
-Last activity: 2026-02-23 — Plan 02-03 complete: EXTRACTION_PROMPT_TEMPLATE, run_capture, CLI capture subcommand (26 tests)
+Phase: 4 of 4 (Retrieval)
+Plan: 2 of 2 in current phase
+Status: Plan 04-02 complete — retrieve and recall CLI subcommands wired, 67 tests green, all v1 requirements satisfied
+Last activity: 2026-02-24 — Plan 04-02 complete: CLI retrieve and recall subcommands with integration tests
 
-Progress: [█████░░░░░] 56%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 2 min
-- Total execution time: 11 min
+- Total plans completed: 7
+- Average duration: 3 min
+- Total execution time: 22 min
 
 **By Phase:**
 
@@ -35,6 +35,10 @@ Progress: [█████░░░░░] 56%
 - Trend: stable
 
 *Updated after each plan completion*
+| Phase 03-storage P01 | 13 | 2 tasks | 4 files |
+| Phase 03-storage P02 | 3 | 2 tasks | 3 files |
+| Phase 04-retrieval P01 | 7 | 1 task | 2 files |
+| Phase 04-retrieval P02 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -67,6 +71,23 @@ Recent decisions affecting current work:
 - [02-03]: Empty transcript produces stub with reason='empty transcript' — distinguishes from timeout in stub content
 - [02-03]: run_capture returns silently on bad JSON stdin — no exception propagation to hook runner
 - [02-03]: CLI capture command has no options — all input comes from stdin, matching SessionEnd hook invocation pattern
+- [Phase 03-storage]: chromadb>=1.0 added to pyproject.toml; lazy imports inside function bodies to avoid ~1s startup cost
+- [Phase 03-storage]: upsert used in index_session_file (idempotent), add used in reindex (no duplicates after drop)
+- [Phase 03-storage]: filename stem as fallback ChromaDB ID when session_id absent in frontmatter — stem is unique by write_session_file construction
+- [Phase 03-storage]: PyYAML parses ISO 8601 timestamps to datetime objects; use isoformat() to preserve T-separator in ChromaDB metadata
+- [Phase 03-storage]: EphemeralClient shares singleton backend in tests; fixture deletes collection pre/post test for isolation
+- [03-02]: try/except Exception wraps entire import+call in run_capture — catches ImportError (chromadb absent) and runtime errors; capture never crashes
+- [03-02]: project_dir = Path(cwd) in run_capture indexing calls — reuses hook input cwd, not os.getcwd()
+- [03-02]: patch('thehook.storage.index_session_file') targets module attribute — correct for lazy import inside function body
+- [04-01]: get_collection() used in query_sessions (not get_or_create) — avoids creating empty collection on first query
+- [04-01]: min(n_results, count) caps ChromaDB query to prevent ValueError when n_results exceeds collection count
+- [04-01]: Static query string 'project conventions decisions gotchas architecture' for SessionStart — no user input at session start
+- [04-01]: print(json.dumps(output), flush=True) — flush prevents dropped output if hook process is killed
+- [04-01]: Entire run_retrieve() wrapped in try/except Exception: pass — hook must never crash
+- [04-01]: Token budget loaded from config via load_config(project_dir) — respects user's thehook.yaml setting
+- [04-02]: retrieve CLI command has no options — all input from stdin, matching capture command pattern
+- [04-02]: recall uses format_context() for output — same function as run_retrieve, consistent formatting
+- [04-02]: CliRunner() without mix_stderr — Click version does not support that parameter; matches existing test patterns
 
 ### Pending Todos
 
@@ -78,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 02-03-PLAN.md — Extraction prompt, run_capture orchestration, CLI capture command (26 tests, 40 total) — Phase 2 complete
+Last session: 2026-02-24
+Stopped at: Completed 04-02-PLAN.md — retrieve and recall CLI subcommands, 4 CLI integration tests, 67 total tests green. All v1 requirements complete.
 Resume file: None
