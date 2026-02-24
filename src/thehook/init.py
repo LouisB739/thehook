@@ -62,6 +62,11 @@ def init_project(project_dir: Path) -> None:
     (thehook_dir / "knowledge").mkdir(parents=True, exist_ok=True)
     (thehook_dir / "chromadb").mkdir(parents=True, exist_ok=True)
 
+    # Create .gitignore to exclude chromadb (rebuilt with thehook reindex)
+    gitignore_path = thehook_dir / ".gitignore"
+    if not gitignore_path.exists():
+        gitignore_path.write_text("chromadb/\n")
+
     # Register Claude Code hooks
     claude_dir = project_dir / ".claude"
     claude_dir.mkdir(exist_ok=True)
