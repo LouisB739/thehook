@@ -270,9 +270,10 @@ def run_capture() -> None:
     if not hook_input:
         return
 
-    session_id = hook_input.get("session_id", "unknown")
+    session_id = hook_input.get("session_id") or hook_input.get("conversation_id", "unknown")
     transcript_path = hook_input.get("transcript_path", "")
-    cwd = hook_input.get("cwd", ".")
+    workspace_roots = hook_input.get("workspace_roots", [])
+    cwd = hook_input.get("cwd") or (workspace_roots[0] if workspace_roots else ".")
 
     # Use project dir from hook input — hook may run from a different cwd
     sessions_dir = Path(cwd) / ".thehook" / "sessions"

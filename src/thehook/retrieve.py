@@ -64,7 +64,8 @@ def run_retrieve() -> None:
         if not hook_input:
             return
 
-        cwd = hook_input.get("cwd", ".")
+        workspace_roots = hook_input.get("workspace_roots", [])
+        cwd = hook_input.get("cwd") or (workspace_roots[0] if workspace_roots else ".")
         project_dir = Path(cwd)
 
         config = load_config(project_dir)

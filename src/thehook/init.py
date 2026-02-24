@@ -29,6 +29,26 @@ HOOK_CONFIG = {
     ],
 }
 
+CURSOR_HOOK_CONFIG = {
+    "version": 1,
+    "hooks": {
+        "sessionEnd": [
+            {
+                "command": "thehook capture",
+                "type": "command",
+                "timeout": 120,
+            }
+        ],
+        "sessionStart": [
+            {
+                "command": "thehook retrieve",
+                "type": "command",
+                "timeout": 30,
+            }
+        ],
+    },
+}
+
 
 def init_project(project_dir: Path) -> None:
     """Initialize TheHook in the given project directory.
@@ -55,3 +75,11 @@ def init_project(project_dir: Path) -> None:
 
     with open(settings_path, "w") as f:
         json.dump(settings, f, indent=2)
+
+    # Register Cursor hooks
+    cursor_dir = project_dir / ".cursor"
+    cursor_dir.mkdir(exist_ok=True)
+    cursor_hooks_path = cursor_dir / "hooks.json"
+
+    with open(cursor_hooks_path, "w") as f:
+        json.dump(CURSOR_HOOK_CONFIG, f, indent=2)

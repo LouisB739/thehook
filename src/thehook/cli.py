@@ -59,3 +59,26 @@ def recall(query, path):
         click.echo("No relevant knowledge found.")
         return
     click.echo(format_context(documents, token_budget=token_budget))
+
+
+@main.command()
+@click.option("--path", default=".", help="Project root directory")
+def save(path):
+    """Save session knowledge from stdin. Pipe markdown content to this command."""
+    import sys
+    import uuid
+    from thehook.capture import write_session_file
+    content = sys.stdin.read().strip()
+    if not content:
+        click.echo("Nothing to save (empty stdin).", err=True)
+        return
+    project_dir = Path(path).resolve()
+    sessions_dir = project_dir / ".thehook" / "sessions"
+    session_id = uuid.uuid4().hex[:12]
+    session_path = write_session_file(sessions_dir, session_id, "manual-save", content)
+    try:
+        from thehook.storage import index_session_file
+        index_session_file(project_dir, session_path)
+    except Exception:
+        pass
+    click.echo(f"Saved to {session_path.name}")
