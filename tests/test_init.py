@@ -54,6 +54,24 @@ def test_init_registers_session_start_hook(tmp_project):
     assert cmd["timeout"] == 30
 
 
+def test_init_registers_user_prompt_submit_hook(tmp_project):
+    """init_project writes UserPromptSubmit hook with thehook retrieve and timeout 30."""
+    init_project(tmp_project)
+    settings_path = tmp_project / ".claude" / "settings.local.json"
+    settings = json.loads(settings_path.read_text())
+
+    hooks = settings["hooks"]
+    assert "UserPromptSubmit" in hooks
+    prompt_submit = hooks["UserPromptSubmit"]
+    assert isinstance(prompt_submit, list) and len(prompt_submit) > 0
+    inner_hooks = prompt_submit[0]["hooks"]
+    assert isinstance(inner_hooks, list) and len(inner_hooks) > 0
+    cmd = inner_hooks[0]
+    assert cmd["type"] == "command"
+    assert "thehook retrieve" in cmd["command"]
+    assert cmd["timeout"] == 30
+
+
 def test_init_preserves_existing_settings(tmp_project):
     """init_project preserves existing non-hook keys in settings.local.json"""
     claude_dir = tmp_project / ".claude"
@@ -82,6 +100,7 @@ def test_init_is_idempotent(tmp_project):
     assert "hooks" in settings
     assert "SessionEnd" in settings["hooks"]
     assert "SessionStart" in settings["hooks"]
+    assert "UserPromptSubmit" in settings["hooks"]
 
 
 def test_init_creates_claude_dir_if_missing(tmp_project):

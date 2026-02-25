@@ -150,3 +150,16 @@ def reindex(project_dir: Path) -> int:
         collection.add(documents=documents, metadatas=metadatas, ids=ids)
 
     return len(documents)
+
+
+def get_index_count(project_dir: Path) -> int:
+    """Return the number of documents in the ChromaDB collection, or 0 if none.
+
+    Useful to verify that the index is populated (e.g. thehook status).
+    """
+    try:
+        client = get_chroma_client(project_dir)
+        collection = client.get_collection(COLLECTION_NAME)
+        return collection.count()
+    except Exception:
+        return 0

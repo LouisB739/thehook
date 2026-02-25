@@ -29,6 +29,30 @@ def capture():
 
 @main.command()
 @click.option("--path", default=".", help="Project root directory")
+def status(path):
+    """Show sessions/knowledge counts and ChromaDB index size (verify retrieval is ready)."""
+    project_dir = Path(path).resolve()
+    thehook = project_dir / ".thehook"
+    sessions_dir = thehook / "sessions"
+    knowledge_dir = thehook / "knowledge"
+
+    n_sessions = len(list(sessions_dir.glob("*.md"))) if sessions_dir.exists() else 0
+    n_knowledge = len(list(knowledge_dir.glob("*.md"))) if knowledge_dir.exists() else 0
+
+    from thehook.storage import get_index_count
+    n_indexed = get_index_count(project_dir)
+
+    click.echo(f"sessions:   {n_sessions} .md files")
+    click.echo(f"knowledge:  {n_knowledge} .md files (not indexed by default)")
+    click.echo(f"chromadb:   {n_indexed} documents indexed")
+    if n_sessions > 0 and n_indexed == 0:
+        click.echo("Run 'thehook reindex' to fill ChromaDB from sessions.", err=True)
+    elif n_indexed > 0:
+        click.echo("Retrieval:  run 'thehook recall \"your query\"' to test.")
+
+
+@main.command()
+@click.option("--path", default=".", help="Project root directory")
 def reindex(path):
     """Rebuild the ChromaDB index from all session markdown files."""
     from thehook.storage import reindex as do_reindex

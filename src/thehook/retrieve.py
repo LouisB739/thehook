@@ -1,10 +1,38 @@
 """Retrieval functions for the SessionStart hook and recall CLI."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+DEFAULT_RETRIEVAL_QUERY = "project conventions decisions gotchas architecture"
 
-def query_sessions(project_dir: Path, query_text: str, n_results: int = 5) -> list[str]:
+
+def _extract_documents(results: dict) -> list[str]:
+    """Extract first query result list safely from ChromaDB response."""
+    documents = results.get("documents", [])
+    if not documents:
+        return []
+    return documents[0] or []
+
+
+def _recency_where_clause(recency_days: int) -> dict | None:
+    """Build a ChromaDB metadata filter for recent sessions."""
+    if recency_days <= 0:
+        return None
+    cutoff = datetime.now(timezone.utc) - timedelta(days=recency_days)
+    return {"timestamp": {"$gte": cutoff.isoformat()}}
+
+
+def query_sessions(
+    project_dir: Path,
+    query_text: str,
+    n_results: int = 5,
+    recency_days: int = 0,
+    recency_fallback_global: bool = True,
+) -> list[str]:
     """Query ChromaDB for session documents matching query_text.
+
+    Optional recency filtering limits retrieval to sessions newer than
+    `recency_days`. If that returns no hits, a global fallback query can run.
 
     Returns [] when collection does not exist, is empty, or on any error.
     Uses lazy chromadb import to avoid ~1s startup cost.
@@ -16,9 +44,20 @@ def query_sessions(project_dir: Path, query_text: str, n_results: int = 5) -> li
         count = collection.count()
         if count == 0:
             return []
-        actual_n = min(n_results, count)
+        actual_n = min(max(1, n_results), count)
+        where = _recency_where_clause(recency_days)
+        if where:
+            filtered_results = collection.query(
+                query_texts=[query_text],
+                n_results=actual_n,
+                where=where,
+            )
+            filtered_docs = _extract_documents(filtered_results)
+            if filtered_docs or not recency_fallback_global:
+                return filtered_docs
+
         results = collection.query(query_texts=[query_text], n_results=actual_n)
-        return results["documents"][0]
+        return _extract_documents(results)
     except Exception:
         return []
 
@@ -45,8 +84,21 @@ def format_context(documents: list[str], token_budget: int = 2000) -> str:
     return "\n\n---\n\n".join(parts)
 
 
+def _query_from_hook_input(hook_input: dict) -> str:
+    """Choose retrieval query from hook payload, with a safe fallback.
+
+    UserPromptSubmit provides a `prompt` field; when present we use it for
+    query-aware retrieval. SessionStart and unknown events fall back to a
+    generic project-memory query.
+    """
+    prompt = str(hook_input.get("prompt", "")).strip()
+    if prompt:
+        return prompt
+    return DEFAULT_RETRIEVAL_QUERY
+
+
 def run_retrieve() -> None:
-    """SessionStart hook pipeline: read stdin, query ChromaDB, print context JSON.
+    """Retrieval hook pipeline: read stdin, query ChromaDB, print context JSON.
 
     Reads hook input from stdin (same format as capture.py), queries ChromaDB
     for relevant session documents, assembles context within the token budget
@@ -70,17 +122,27 @@ def run_retrieve() -> None:
 
         config = load_config(project_dir)
         token_budget = config.get("token_budget", 2000)
+        retrieval_n_results = max(1, int(config.get("retrieval_n_results", 5)))
+        retrieval_recency_days = max(0, int(config.get("retrieval_recency_days", 0)))
+        retrieval_recency_fallback_global = bool(
+            config.get("retrieval_recency_fallback_global", True)
+        )
+        hook_event_name = hook_input.get("hook_event_name", "SessionStart")
+        query_text = _query_from_hook_input(hook_input)
 
         documents = query_sessions(
             project_dir,
-            query_text="project conventions decisions gotchas architecture",
+            query_text=query_text,
+            n_results=retrieval_n_results,
+            recency_days=retrieval_recency_days,
+            recency_fallback_global=retrieval_recency_fallback_global,
         )
         context = format_context(documents, token_budget=token_budget)
 
         if context:
             output = {
                 "hookSpecificOutput": {
-                    "hookEventName": "SessionStart",
+                    "hookEventName": hook_event_name,
                     "additionalContext": context,
                 }
             }

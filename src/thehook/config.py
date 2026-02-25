@@ -5,8 +5,11 @@ import yaml
 
 DEFAULT_CONFIG = {
     "token_budget": 2000,
+    "retrieval_n_results": 5,
+    "retrieval_recency_days": 0,
+    "retrieval_recency_fallback_global": True,
     "consolidation_threshold": 5,
-    "active_hooks": ["SessionEnd", "SessionStart"],
+    "active_hooks": ["SessionEnd", "SessionStart", "UserPromptSubmit"],
 }
 
 

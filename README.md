@@ -58,8 +58,8 @@ This creates:
 ```
 your-project/
 ├── .thehook/
-│   ├── sessions/     # Captured knowledge (markdown files) — shared via git
-│   ├── knowledge/    # Consolidated knowledge — shared via git
+│   ├── sessions/     # Captured knowledge (markdown files) — indexed in ChromaDB, shared via git
+│   ├── knowledge/    # Optional consolidated docs (not indexed by default; for future use)
 │   ├── chromadb/     # Search index (local only, gitignored)
 │   └── .gitignore    # Excludes chromadb/
 ├── .claude/
@@ -151,6 +151,20 @@ Implemented JWT auth with refresh token rotation.
 EOF
 ```
 
+### `thehook status`
+
+Show how many session/knowledge files you have and how many documents are in the ChromaDB index. Use this to verify that retrieval is ready.
+
+```bash
+thehook status
+# sessions:   48 .md files
+# knowledge:  0 .md files (not indexed by default)
+# chromadb:   48 documents indexed
+# Retrieval:  run 'thehook recall "your query"' to test.
+```
+
+If you have sessions but `chromadb: 0`, run `thehook reindex`.
+
 ### `thehook reindex`
 
 Rebuild the ChromaDB index from scratch. Useful if you manually edited or deleted session files.
@@ -166,7 +180,7 @@ Called automatically by the SessionEnd hook. Reads the session transcript from s
 
 ### `thehook retrieve`
 
-Called automatically by the SessionStart hook. Queries the index and outputs context for the agent. You don't need to call this manually.
+Called automatically by SessionStart and UserPromptSubmit hooks. Queries the index and outputs context for the agent. You don't need to call this manually.
 
 ## Configuration
 
@@ -176,13 +190,23 @@ Create a `thehook.yaml` at your project root to customize behavior:
 # Maximum tokens of context to inject at session start (default: 2000)
 token_budget: 2000
 
+# Maximum number of documents returned by retrieval (default: 5)
+retrieval_n_results: 5
+
+# Only retrieve sessions from the last N days (default: 0 = disabled)
+retrieval_recency_days: 0
+
+# If recency filter returns nothing, retry globally (default: true)
+retrieval_recency_fallback_global: true
+
 # Number of sessions before auto-consolidation (default: 5)
 consolidation_threshold: 5
 
-# Which hooks are active (default: both)
+# Which hooks are active (default: all three)
 active_hooks:
   - SessionEnd
   - SessionStart
+  - UserPromptSubmit
 ```
 
 All settings are optional — defaults are applied for anything you don't specify.
@@ -253,6 +277,7 @@ Both agents are configured automatically by `thehook init`. The hooks call `theh
 - **Markdown is truth** — ChromaDB can be deleted and rebuilt anytime with `thehook reindex`
 - **Hooks never crash** — All hook code is wrapped in try/except. A failure in TheHook never breaks your session
 - **No server needed** — ChromaDB runs as a local embedded database
+- **Embedding** — ChromaDB uses its default: **all-MiniLM-L6-v2** (ONNX). No API key; model is cached locally (e.g. `~/.cache/chroma/`).
 - **Fast startup** — Heavy dependencies (ChromaDB) are lazy-imported to keep CLI snappy
 
 ## Troubleshooting

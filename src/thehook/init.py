@@ -27,6 +27,17 @@ HOOK_CONFIG = {
             ]
         }
     ],
+    "UserPromptSubmit": [
+        {
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": "thehook retrieve",
+                    "timeout": 30,
+                }
+            ]
+        }
+    ],
 }
 
 CURSOR_HOOK_CONFIG = {
@@ -40,6 +51,13 @@ CURSOR_HOOK_CONFIG = {
             }
         ],
         "sessionStart": [
+            {
+                "command": "thehook retrieve",
+                "type": "command",
+                "timeout": 30,
+            }
+        ],
+        "beforeSubmitPrompt": [
             {
                 "command": "thehook retrieve",
                 "type": "command",

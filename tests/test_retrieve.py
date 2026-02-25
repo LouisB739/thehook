@@ -114,6 +114,75 @@ def test_query_sessions_missing_collection(tmp_path):
     assert results == [], f"Expected [] for missing collection, got {results!r}"
 
 
+def test_query_sessions_respects_n_results(tmp_path):
+    """query_sessions forwards n_results (capped by collection count)."""
+    from thehook.retrieve import query_sessions
+    from unittest.mock import MagicMock
+
+    collection = MagicMock()
+    collection.count.return_value = 10
+    collection.query.return_value = {"documents": [["doc-a"]]}
+    client = MagicMock()
+    client.get_collection.return_value = collection
+
+    with patch("thehook.storage.get_chroma_client", return_value=client):
+        result = query_sessions(tmp_path, "query text", n_results=3)
+
+    assert result == ["doc-a"]
+    collection.query.assert_called_once_with(query_texts=["query text"], n_results=3)
+
+
+def test_query_sessions_applies_recency_where_clause(tmp_path):
+    """query_sessions includes metadata filter when recency_days > 0."""
+    from thehook.retrieve import query_sessions
+    from unittest.mock import MagicMock
+
+    collection = MagicMock()
+    collection.count.return_value = 10
+    collection.query.return_value = {"documents": [["doc-recent"]]}
+    client = MagicMock()
+    client.get_collection.return_value = collection
+
+    with patch("thehook.storage.get_chroma_client", return_value=client):
+        result = query_sessions(tmp_path, "query text", n_results=2, recency_days=7)
+
+    assert result == ["doc-recent"]
+    assert collection.query.call_count == 1
+    kwargs = collection.query.call_args.kwargs
+    assert kwargs["query_texts"] == ["query text"]
+    assert kwargs["n_results"] == 2
+    assert "where" in kwargs
+    assert "timestamp" in kwargs["where"]
+    assert "$gte" in kwargs["where"]["timestamp"]
+
+
+def test_query_sessions_recency_can_fallback_to_global(tmp_path):
+    """When recency window is empty, query_sessions falls back to global search."""
+    from thehook.retrieve import query_sessions
+    from unittest.mock import MagicMock
+
+    collection = MagicMock()
+    collection.count.return_value = 10
+    collection.query.side_effect = [
+        {"documents": [[]]},          # recency-constrained result
+        {"documents": [["doc-old"]]},  # global fallback result
+    ]
+    client = MagicMock()
+    client.get_collection.return_value = collection
+
+    with patch("thehook.storage.get_chroma_client", return_value=client):
+        result = query_sessions(
+            tmp_path,
+            "query text",
+            n_results=4,
+            recency_days=30,
+            recency_fallback_global=True,
+        )
+
+    assert result == ["doc-old"]
+    assert collection.query.call_count == 2
+
+
 # ---------------------------------------------------------------------------
 # Tests: format_context
 # ---------------------------------------------------------------------------
@@ -225,6 +294,69 @@ def test_run_retrieve_uses_config_token_budget(tmp_path, capsys):
     max_chars = 500 * 4  # 2000 chars
     assert len(additional_context) <= max_chars, (
         f"additionalContext length {len(additional_context)} exceeds token_budget * 4 = {max_chars}"
+    )
+
+
+def test_run_retrieve_uses_user_prompt_for_query(tmp_path, capsys):
+    """UserPromptSubmit uses the incoming prompt as semantic retrieval query."""
+    from thehook.retrieve import run_retrieve
+
+    hook_input = {
+        "cwd": str(tmp_path),
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "How did we decide auth token rotation?",
+    }
+
+    with patch("thehook.capture.read_hook_input", return_value=hook_input):
+        with patch("thehook.retrieve.query_sessions", return_value=["doc-auth"]) as mock_query:
+            run_retrieve()
+
+    captured = capsys.readouterr()
+    assert captured.out.strip(), "run_retrieve should print JSON when documents found"
+
+    output = json.loads(captured.out.strip())
+    hook_specific = output["hookSpecificOutput"]
+    assert hook_specific.get("hookEventName") == "UserPromptSubmit"
+    assert "doc-auth" in hook_specific["additionalContext"]
+
+    mock_query.assert_called_once_with(
+        tmp_path,
+        query_text="How did we decide auth token rotation?",
+        n_results=5,
+        recency_days=0,
+        recency_fallback_global=True,
+    )
+
+
+def test_run_retrieve_passes_retrieval_tuning_from_config(tmp_path, capsys):
+    """run_retrieve forwards retrieval knobs from thehook.yaml into query_sessions."""
+    from thehook.retrieve import run_retrieve
+
+    (tmp_path / "thehook.yaml").write_text(
+        "retrieval_n_results: 2\n"
+        "retrieval_recency_days: 14\n"
+        "retrieval_recency_fallback_global: false\n"
+    )
+
+    hook_input = {
+        "cwd": str(tmp_path),
+        "hook_event_name": "UserPromptSubmit",
+        "prompt": "database migration policy",
+    }
+
+    with patch("thehook.capture.read_hook_input", return_value=hook_input):
+        with patch("thehook.retrieve.query_sessions", return_value=["doc-db"]) as mock_query:
+            run_retrieve()
+
+    captured = capsys.readouterr()
+    assert captured.out.strip(), "run_retrieve should print JSON when documents found"
+
+    mock_query.assert_called_once_with(
+        tmp_path,
+        query_text="database migration policy",
+        n_results=2,
+        recency_days=14,
+        recency_fallback_global=False,
     )
 
 
