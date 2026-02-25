@@ -4,3 +4,6 @@ __pycache__/
 .planning/
 docs/plans/
 CLAUDE.md
+dist/
+.cursor/
+uv.lock
