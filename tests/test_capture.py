@@ -557,3 +557,21 @@ def test_run_capture_lite_throttles_repeated_calls(tmp_project, monkeypatch):
 
     assert len(extraction_calls) == 1
     assert len(list(sessions_dir.glob("*.md"))) == 1
+
+
+def test_run_capture_lite_failure_skips_stub_write(tmp_project, monkeypatch):
+    """run_capture(mode='lite') does not write stub files on extraction failure."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    hook_input = json.dumps({
+        "session_id": "test-lite-failure",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+    monkeypatch.setattr("thehook.capture.run_claude_extraction", lambda *args, **kwargs: None)
+
+    run_capture(mode="lite")
+    assert list(sessions_dir.glob("*.md")) == []

@@ -148,6 +148,23 @@ def test_init_thehook_gitignore_includes_intermediate_state(tmp_project):
     assert "intermediate_capture_state.json" in content
 
 
+def test_init_respects_active_hooks_filter(tmp_project):
+    """init_project applies active_hooks to both Claude and Cursor hook configs."""
+    (tmp_project / "thehook.yaml").write_text(
+        "active_hooks:\n"
+        "  - SessionEnd\n"
+        "  - SessionStart\n"
+    )
+
+    init_project(tmp_project)
+
+    claude_hooks = json.loads((tmp_project / ".claude" / "settings.local.json").read_text())["hooks"]
+    cursor_hooks = json.loads((tmp_project / ".cursor" / "hooks.json").read_text())["hooks"]
+
+    assert set(claude_hooks.keys()) == {"SessionEnd", "SessionStart"}
+    assert set(cursor_hooks.keys()) == {"sessionEnd", "sessionStart"}
+
+
 def test_init_creates_claude_dir_if_missing(tmp_project):
     """init_project creates .claude/ and settings.local.json when .claude/ does not exist"""
     assert not (tmp_project / ".claude").exists()

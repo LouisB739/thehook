@@ -395,12 +395,26 @@ def run_capture(mode: Literal["full", "lite"] = "full") -> None:
         return
 
     session_id = hook_input.get("session_id") or hook_input.get("conversation_id", "unknown")
-    transcript_path = hook_input.get("transcript_path", "")
+    transcript_path = hook_input.get("transcript_path") or ""
     project_dir = _resolve_project_dir(hook_input)
 
     # Use project dir from hook input — hook may run from a different cwd
     sessions_dir = project_dir / ".thehook" / "sessions"
     config = _load_runtime_config(project_dir)
+
+    # Cursor may send transcript_path as null when transcripts are disabled.
+    if not transcript_path:
+        if mode == "lite":
+            return
+        session_path = write_stub_summary(
+            sessions_dir,
+            session_id,
+            transcript_path,
+            0,
+            reason="empty transcript_path",
+        )
+        _index_session_file(project_dir, session_path)
+        return
 
     messages = parse_transcript(transcript_path)
     if not messages:
@@ -445,7 +459,9 @@ def run_capture(mode: Literal["full", "lite"] = "full") -> None:
         if mode == "lite":
             _mark_intermediate_capture(project_dir, str(session_id), transcript_hash)
     else:
+        if mode == "lite":
+            # Keep intermediate mode cheap: skip stub writes on extraction failure.
+            _mark_intermediate_capture(project_dir, str(session_id), transcript_hash)
+            return
         session_path = write_stub_summary(sessions_dir, session_id, transcript_path, len(messages), reason="timeout")
         _index_session_file(project_dir, session_path)
-        if mode == "lite":
-            _mark_intermediate_capture(project_dir, str(session_id), transcript_hash)
