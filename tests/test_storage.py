@@ -101,6 +101,24 @@ def no_session_id_file(tmp_path):
 
 
 @pytest.fixture
+def knowledge_file(tmp_path):
+    """Create a consolidated knowledge markdown file with knowledge frontmatter."""
+    content = (
+        "---\n"
+        "knowledge_id: knowledge-2026-02-24-123456\n"
+        "type: knowledge\n"
+        "timestamp: 2026-02-24T12:00:00+00:00\n"
+        "consolidated_until: 2026-02-24T11:59:59+00:00\n"
+        "---\n\n"
+        "## SUMMARY\n"
+        "Consolidated memory across recent sessions.\n"
+    )
+    f = tmp_path / "2026-02-24-knowledge.md"
+    f.write_text(content)
+    return f
+
+
+@pytest.fixture
 def sessions_dir_with_files(tmp_path):
     """Create .thehook/sessions/ with several valid session files."""
     sessions = tmp_path / ".thehook" / "sessions"
@@ -217,6 +235,21 @@ def test_index_session_file_uses_filename_fallback(tmp_path, no_session_id_file,
     assert results["ids"][0] == no_session_id_file.stem
 
 
+def test_index_markdown_file_indexes_knowledge_docs(tmp_path, knowledge_file, ephemeral_client):
+    """index_markdown_file supports knowledge docs with type=knowledge metadata."""
+    from thehook.storage import index_markdown_file, COLLECTION_NAME
+
+    with patch("thehook.storage.get_chroma_client", return_value=ephemeral_client):
+        index_markdown_file(tmp_path, knowledge_file, default_type="knowledge")
+
+    collection = ephemeral_client.get_or_create_collection(COLLECTION_NAME)
+    results = collection.get()
+    assert len(results["ids"]) == 1
+    assert results["ids"][0] == "knowledge-2026-02-24-123456"
+    assert results["metadatas"][0]["type"] == "knowledge"
+    assert results["metadatas"][0]["knowledge_id"] == "knowledge-2026-02-24-123456"
+
+
 # ---------------------------------------------------------------------------
 # Tests: reindex
 # ---------------------------------------------------------------------------
@@ -309,3 +342,39 @@ def test_reindex_skips_empty_body(tmp_path, ephemeral_client):
     results = collection.get()
     assert len(results["ids"]) == 1
     assert results["ids"][0] == "valid-session-001"
+
+
+def test_reindex_includes_knowledge_documents(tmp_path, ephemeral_client):
+    """reindex indexes both sessions and consolidated knowledge docs."""
+    from thehook.storage import reindex, COLLECTION_NAME
+
+    sessions = tmp_path / ".thehook" / "sessions"
+    sessions.mkdir(parents=True)
+    knowledge = tmp_path / ".thehook" / "knowledge"
+    knowledge.mkdir(parents=True)
+
+    session_file = sessions / "2026-02-24-session.md"
+    session_file.write_text(
+        "---\n"
+        "session_id: session-reindex-001\n"
+        "timestamp: 2026-02-24T10:00:00+00:00\n"
+        "---\n\n"
+        "## SUMMARY\nSession content.\n"
+    )
+    knowledge_file = knowledge / "2026-02-24-knowledge.md"
+    knowledge_file.write_text(
+        "---\n"
+        "knowledge_id: knowledge-reindex-001\n"
+        "type: knowledge\n"
+        "timestamp: 2026-02-24T11:00:00+00:00\n"
+        "---\n\n"
+        "## SUMMARY\nKnowledge content.\n"
+    )
+
+    with patch("thehook.storage.get_chroma_client", return_value=ephemeral_client):
+        count = reindex(tmp_path)
+
+    assert count == 2
+    collection = ephemeral_client.get_or_create_collection(COLLECTION_NAME)
+    results = collection.get()
+    assert set(results["ids"]) == {"session-reindex-001", "knowledge-reindex-001"}

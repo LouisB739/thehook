@@ -183,6 +183,31 @@ def test_query_sessions_recency_can_fallback_to_global(tmp_path):
     assert collection.query.call_count == 2
 
 
+def test_query_sessions_returns_knowledge_documents(tmp_path, ephemeral_client):
+    """query_sessions can retrieve consolidated knowledge docs from same collection."""
+    from thehook.storage import index_markdown_file
+    from thehook.retrieve import query_sessions
+
+    knowledge_content = (
+        "---\n"
+        "knowledge_id: knowledge-retrieve-001\n"
+        "type: knowledge\n"
+        "timestamp: 2026-02-24T12:00:00+00:00\n"
+        "---\n\n"
+        "## DECISIONS\n"
+        "- Use periodic consolidation every 5 sessions.\n"
+    )
+    knowledge_file = tmp_path / "knowledge.md"
+    knowledge_file.write_text(knowledge_content)
+
+    with patch("thehook.storage.get_chroma_client", return_value=ephemeral_client):
+        index_markdown_file(tmp_path, knowledge_file, default_type="knowledge")
+        results = query_sessions(tmp_path, "periodic consolidation")
+
+    assert len(results) > 0
+    assert any("consolidation every 5 sessions" in doc for doc in results)
+
+
 # ---------------------------------------------------------------------------
 # Tests: format_context
 # ---------------------------------------------------------------------------
