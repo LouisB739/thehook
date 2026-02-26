@@ -38,6 +38,30 @@ HOOK_CONFIG = {
             ]
         }
     ],
+    "Stop": [
+        {
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": "thehook capture-lite",
+                    "async": True,
+                    "timeout": 25,
+                }
+            ]
+        }
+    ],
+    "PreCompact": [
+        {
+            "hooks": [
+                {
+                    "type": "command",
+                    "command": "thehook capture-lite",
+                    "async": True,
+                    "timeout": 25,
+                }
+            ]
+        }
+    ],
 }
 
 CURSOR_HOOK_CONFIG = {
@@ -64,6 +88,20 @@ CURSOR_HOOK_CONFIG = {
                 "timeout": 30,
             }
         ],
+        "stop": [
+            {
+                "command": "thehook capture-lite",
+                "type": "command",
+                "timeout": 25,
+            }
+        ],
+        "preCompact": [
+            {
+                "command": "thehook capture-lite",
+                "type": "command",
+                "timeout": 25,
+            }
+        ],
     },
 }
 
@@ -83,7 +121,15 @@ def init_project(project_dir: Path) -> None:
     # Create .gitignore to exclude chromadb (rebuilt with thehook reindex)
     gitignore_path = thehook_dir / ".gitignore"
     if not gitignore_path.exists():
-        gitignore_path.write_text("chromadb/\n")
+        gitignore_path.write_text("chromadb/\nintermediate_capture_state.json\n")
+    else:
+        existing = gitignore_path.read_text().splitlines()
+        required_entries = {"chromadb/", "intermediate_capture_state.json"}
+        merged = list(existing)
+        for entry in required_entries:
+            if entry not in existing:
+                merged.append(entry)
+        gitignore_path.write_text("\n".join(merged).rstrip() + "\n")
 
     # Register Claude Code hooks
     claude_dir = project_dir / ".claude"

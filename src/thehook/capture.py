@@ -1,15 +1,22 @@
 """Transcript parsing and hook input reading for the capture pipeline."""
 
+import hashlib
 import json
 import os
 import signal
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 MAX_TRANSCRIPT_CHARS = 50_000
 EXTRACTION_TIMEOUT_SECONDS = 85
+INTERMEDIATE_EXTRACTION_TIMEOUT_SECONDS = 20
+INTERMEDIATE_MAX_TRANSCRIPT_CHARS = 12_000
+INTERMEDIATE_MIN_INTERVAL_SECONDS = 180
+INTERMEDIATE_STATE_FILENAME = "intermediate_capture_state.json"
 
 EXTRACTION_PROMPT_TEMPLATE = """\
 You are a technical knowledge extractor. Analyze the following Claude session transcript and extract concrete, reusable knowledge from it.
@@ -43,6 +50,121 @@ A bullet list of non-obvious issues, edge cases, or traps encountered. Include w
 
 {transcript_text}
 """
+
+INTERMEDIATE_EXTRACTION_PROMPT_TEMPLATE = """\
+You are extracting short-term project memory from an in-progress coding session.
+
+Focus on what changed recently and only keep high-signal details:
+- **conventions** newly established or reinforced
+- **decisions** with trade-offs or scope implications
+- **gotchas** that could cause future regressions
+
+Keep it concise and concrete. Skip generic guidance and routine actions.
+
+## Output format
+
+Respond with exactly these four sections. If a section has nothing to report, write "None this session." under it.
+
+## SUMMARY
+One short sentence on recent progress.
+
+## CONVENTIONS
+Bullet list of concrete conventions.
+
+## DECISIONS
+Bullet list of project-specific decisions.
+
+## GOTCHAS
+Bullet list of non-obvious issues and mitigations.
+
+---
+
+## Session transcript
+
+{transcript_text}
+"""
+
+
+def _load_runtime_config(project_dir: Path) -> dict:
+    """Load config safely; return defaults on any failure."""
+    try:
+        from thehook.config import load_config
+        return load_config(project_dir)
+    except Exception:
+        return {}
+
+
+def _state_file_path(project_dir: Path) -> Path:
+    return project_dir / ".thehook" / INTERMEDIATE_STATE_FILENAME
+
+
+def _read_intermediate_state(project_dir: Path) -> dict:
+    path = _state_file_path(project_dir)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+
+def _write_intermediate_state(project_dir: Path, state: dict) -> None:
+    path = _state_file_path(project_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2))
+
+
+def _should_skip_intermediate_capture(
+    project_dir: Path,
+    session_id: str,
+    transcript_hash: str,
+    min_interval_seconds: int,
+) -> bool:
+    state = _read_intermediate_state(project_dir)
+    now = int(time.time())
+    last_capture_at = int(state.get("last_capture_at", 0))
+    last_session_id = str(state.get("session_id", ""))
+    last_transcript_hash = str(state.get("transcript_hash", ""))
+
+    # Skip repeated captures when transcript has not changed.
+    if last_session_id == session_id and last_transcript_hash == transcript_hash:
+        return True
+
+    # Keep intermediate hooks lightweight by enforcing a minimum interval.
+    if now - last_capture_at < max(0, min_interval_seconds):
+        return True
+
+    return False
+
+
+def _mark_intermediate_capture(
+    project_dir: Path,
+    session_id: str,
+    transcript_hash: str,
+) -> None:
+    _write_intermediate_state(
+        project_dir,
+        {
+            "session_id": session_id,
+            "transcript_hash": transcript_hash,
+            "last_capture_at": int(time.time()),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+def _index_session_file(project_dir: Path, session_path: Path) -> None:
+    try:
+        from thehook.storage import index_session_file
+        index_session_file(project_dir, session_path)
+    except Exception:
+        pass  # ChromaDB failure must never break capture pipeline
+
+
+def _resolve_project_dir(hook_input: dict) -> Path:
+    workspace_roots = hook_input.get("workspace_roots", [])
+    cwd = hook_input.get("cwd") or (workspace_roots[0] if workspace_roots else ".")
+    return Path(cwd)
 
 
 def read_hook_input() -> dict:
@@ -151,7 +273,7 @@ def assemble_transcript_text(messages: list[dict], max_chars: int = 50_000) -> s
     return full
 
 
-def run_claude_extraction(prompt: str) -> str | None:
+def run_claude_extraction(prompt: str, timeout_seconds: int = EXTRACTION_TIMEOUT_SECONDS) -> str | None:
     """Run claude -p with the extraction prompt. Returns text output or None on failure.
 
     Uses start_new_session=True to isolate the process group, then kills the
@@ -171,7 +293,7 @@ def run_claude_extraction(prompt: str) -> str | None:
             stderr=subprocess.PIPE,
             start_new_session=True,  # new process group; killpg will reach all children
         )
-        stdout, _ = proc.communicate(timeout=EXTRACTION_TIMEOUT_SECONDS)
+        stdout, _ = proc.communicate(timeout=timeout_seconds)
         if proc.returncode == 0:
             return stdout.decode("utf-8", errors="replace").strip() or None
         return None
@@ -255,13 +377,15 @@ def write_stub_summary(
     return write_session_file(sessions_dir, session_id, transcript_path, stub_content)
 
 
-def run_capture() -> None:
-    """Orchestrate the full SessionEnd capture pipeline.
+def run_capture(mode: Literal["full", "lite"] = "full") -> None:
+    """Orchestrate capture pipeline for final and intermediate memory.
 
     Reads hook input from stdin, parses the JSONL transcript, runs LLM
-    extraction via run_claude_extraction, and writes a session file. On any
-    failure path (bad stdin, empty transcript, extraction failure), writes a
-    stub summary so every session always produces a file.
+    extraction via run_claude_extraction, and writes a session file.
+
+    - full mode (SessionEnd): always writes either extraction or stub.
+    - lite mode (Stop/PreCompact): skips when disabled, throttled, unchanged,
+      or transcript is empty.
 
     Uses cwd from hook input as the project directory to avoid being affected
     by the shell's current working directory at hook invocation time.
@@ -272,40 +396,56 @@ def run_capture() -> None:
 
     session_id = hook_input.get("session_id") or hook_input.get("conversation_id", "unknown")
     transcript_path = hook_input.get("transcript_path", "")
-    workspace_roots = hook_input.get("workspace_roots", [])
-    cwd = hook_input.get("cwd") or (workspace_roots[0] if workspace_roots else ".")
+    project_dir = _resolve_project_dir(hook_input)
 
     # Use project dir from hook input — hook may run from a different cwd
-    sessions_dir = Path(cwd) / ".thehook" / "sessions"
+    sessions_dir = project_dir / ".thehook" / "sessions"
+    config = _load_runtime_config(project_dir)
 
     messages = parse_transcript(transcript_path)
     if not messages:
+        if mode == "lite":
+            return
         session_path = write_stub_summary(sessions_dir, session_id, transcript_path, 0, reason="empty transcript")
-        try:
-            from thehook.storage import index_session_file
-            project_dir = Path(cwd)
-            index_session_file(project_dir, session_path)
-        except Exception:
-            pass  # ChromaDB failure must never break capture pipeline
+        _index_session_file(project_dir, session_path)
         return
 
-    transcript_text = assemble_transcript_text(messages, max_chars=MAX_TRANSCRIPT_CHARS)
-    prompt = EXTRACTION_PROMPT_TEMPLATE.format(transcript_text=transcript_text)
+    if mode == "lite":
+        if not bool(config.get("intermediate_capture_enabled", True)):
+            return
+        max_chars = int(config.get("intermediate_capture_max_transcript_chars", INTERMEDIATE_MAX_TRANSCRIPT_CHARS))
+        timeout_seconds = int(config.get("intermediate_capture_timeout_seconds", INTERMEDIATE_EXTRACTION_TIMEOUT_SECONDS))
+        min_interval_seconds = int(config.get("intermediate_capture_min_interval_seconds", INTERMEDIATE_MIN_INTERVAL_SECONDS))
+        prompt_template = INTERMEDIATE_EXTRACTION_PROMPT_TEMPLATE
+    else:
+        max_chars = MAX_TRANSCRIPT_CHARS
+        timeout_seconds = EXTRACTION_TIMEOUT_SECONDS
+        min_interval_seconds = 0
+        prompt_template = EXTRACTION_PROMPT_TEMPLATE
 
-    result = run_claude_extraction(prompt)
+    transcript_text = assemble_transcript_text(messages, max_chars=max_chars)
+
+    if mode == "lite":
+        transcript_hash = hashlib.sha256(transcript_text.encode("utf-8")).hexdigest()
+        if _should_skip_intermediate_capture(
+            project_dir,
+            session_id=str(session_id),
+            transcript_hash=transcript_hash,
+            min_interval_seconds=min_interval_seconds,
+        ):
+            return
+    else:
+        transcript_hash = ""
+
+    prompt = prompt_template.format(transcript_text=transcript_text)
+    result = run_claude_extraction(prompt, timeout_seconds=timeout_seconds)
     if result:
         session_path = write_session_file(sessions_dir, session_id, transcript_path, result)
-        try:
-            from thehook.storage import index_session_file
-            project_dir = Path(cwd)
-            index_session_file(project_dir, session_path)
-        except Exception:
-            pass  # ChromaDB failure must never break capture pipeline
+        _index_session_file(project_dir, session_path)
+        if mode == "lite":
+            _mark_intermediate_capture(project_dir, str(session_id), transcript_hash)
     else:
         session_path = write_stub_summary(sessions_dir, session_id, transcript_path, len(messages), reason="timeout")
-        try:
-            from thehook.storage import index_session_file
-            project_dir = Path(cwd)
-            index_session_file(project_dir, session_path)
-        except Exception:
-            pass  # ChromaDB failure must never break capture pipeline
+        _index_session_file(project_dir, session_path)
+        if mode == "lite":
+            _mark_intermediate_capture(project_dir, str(session_id), transcript_hash)

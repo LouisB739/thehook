@@ -72,6 +72,40 @@ def test_init_registers_user_prompt_submit_hook(tmp_project):
     assert cmd["timeout"] == 30
 
 
+def test_init_registers_intermediate_capture_hooks_for_claude(tmp_project):
+    """init_project writes Stop/PreCompact hooks with thehook capture-lite."""
+    init_project(tmp_project)
+    settings_path = tmp_project / ".claude" / "settings.local.json"
+    settings = json.loads(settings_path.read_text())
+
+    hooks = settings["hooks"]
+    assert "Stop" in hooks
+    assert "PreCompact" in hooks
+
+    stop_cmd = hooks["Stop"][0]["hooks"][0]
+    precompact_cmd = hooks["PreCompact"][0]["hooks"][0]
+    assert stop_cmd["command"] == "thehook capture-lite"
+    assert precompact_cmd["command"] == "thehook capture-lite"
+    assert stop_cmd["timeout"] == 25
+    assert precompact_cmd["timeout"] == 25
+    assert stop_cmd["async"] is True
+    assert precompact_cmd["async"] is True
+
+
+def test_init_registers_intermediate_capture_hooks_for_cursor(tmp_project):
+    """init_project writes stop/preCompact hooks with thehook capture-lite in Cursor config."""
+    init_project(tmp_project)
+    hooks_path = tmp_project / ".cursor" / "hooks.json"
+    hooks = json.loads(hooks_path.read_text())["hooks"]
+
+    assert "stop" in hooks
+    assert "preCompact" in hooks
+    assert hooks["stop"][0]["command"] == "thehook capture-lite"
+    assert hooks["preCompact"][0]["command"] == "thehook capture-lite"
+    assert hooks["stop"][0]["timeout"] == 25
+    assert hooks["preCompact"][0]["timeout"] == 25
+
+
 def test_init_preserves_existing_settings(tmp_project):
     """init_project preserves existing non-hook keys in settings.local.json"""
     claude_dir = tmp_project / ".claude"
@@ -101,6 +135,17 @@ def test_init_is_idempotent(tmp_project):
     assert "SessionEnd" in settings["hooks"]
     assert "SessionStart" in settings["hooks"]
     assert "UserPromptSubmit" in settings["hooks"]
+    assert "Stop" in settings["hooks"]
+    assert "PreCompact" in settings["hooks"]
+
+
+def test_init_thehook_gitignore_includes_intermediate_state(tmp_project):
+    """init_project ensures intermediate_capture_state.json is ignored locally."""
+    init_project(tmp_project)
+    gitignore_path = tmp_project / ".thehook" / ".gitignore"
+    content = gitignore_path.read_text()
+    assert "chromadb/" in content
+    assert "intermediate_capture_state.json" in content
 
 
 def test_init_creates_claude_dir_if_missing(tmp_project):
