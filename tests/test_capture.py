@@ -11,6 +11,7 @@ import pytest
 
 from thehook.capture import (
     EXTRACTION_PROMPT_TEMPLATE,
+    INTERMEDIATE_EXTRACTION_PROMPT_TEMPLATE,
     assemble_transcript_text,
     parse_transcript,
     read_hook_input,
@@ -285,7 +286,7 @@ def test_run_capture_success_writes_session_file(tmp_project, monkeypatch):
     )
     monkeypatch.setattr(
         "thehook.capture.run_claude_extraction",
-        lambda prompt: extraction_result,
+        lambda *args, **kwargs: extraction_result,
     )
 
     run_capture()
@@ -310,7 +311,7 @@ def test_run_capture_extraction_failure_writes_stub(tmp_project, monkeypatch):
         "cwd": str(tmp_project),
     })
     monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
-    monkeypatch.setattr("thehook.capture.run_claude_extraction", lambda prompt: None)
+    monkeypatch.setattr("thehook.capture.run_claude_extraction", lambda *args, **kwargs: None)
 
     run_capture()
 
@@ -363,6 +364,17 @@ def test_cli_capture_command_exists():
     assert "capture" in result.output.lower() or "extract" in result.output.lower()
 
 
+def test_cli_capture_lite_command_exists():
+    """The 'capture-lite' subcommand is registered in the CLI."""
+    from click.testing import CliRunner
+    from thehook.cli import main
+
+    runner = CliRunner()
+    result = runner.invoke(main, ["capture-lite", "--help"])
+    assert result.exit_code == 0
+    assert "lite" in result.output.lower()
+
+
 # ---------------------------------------------------------------------------
 # Storage integration tests — index_session_file wiring in run_capture
 # ---------------------------------------------------------------------------
@@ -388,7 +400,7 @@ def test_run_capture_calls_index_session_file(tmp_project, monkeypatch):
     )
     monkeypatch.setattr(
         "thehook.capture.run_claude_extraction",
-        lambda prompt: extraction_result,
+        lambda *args, **kwargs: extraction_result,
     )
 
     index_calls = []
@@ -420,7 +432,7 @@ def test_run_capture_index_failure_does_not_crash(tmp_project, monkeypatch):
     monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
     monkeypatch.setattr(
         "thehook.capture.run_claude_extraction",
-        lambda prompt: "## SUMMARY\nOK.",
+        lambda *args, **kwargs: "## SUMMARY\nOK.",
     )
 
     def exploding_index(project_dir, session_path):
@@ -450,7 +462,7 @@ def test_run_capture_stub_also_indexes(tmp_project, monkeypatch):
     # Trigger stub path by returning None from extraction
     monkeypatch.setattr(
         "thehook.capture.run_claude_extraction",
-        lambda prompt: None,
+        lambda *args, **kwargs: None,
     )
 
     index_calls = []
@@ -480,3 +492,86 @@ def test_cli_reindex_command(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, f"Non-zero exit: {result.output}"
     assert "Reindexed 3 session files." in result.output
+
+
+def test_intermediate_prompt_has_all_four_sections():
+    """INTERMEDIATE_EXTRACTION_PROMPT_TEMPLATE must contain all four section headers."""
+    assert "## SUMMARY" in INTERMEDIATE_EXTRACTION_PROMPT_TEMPLATE
+    assert "## CONVENTIONS" in INTERMEDIATE_EXTRACTION_PROMPT_TEMPLATE
+    assert "## DECISIONS" in INTERMEDIATE_EXTRACTION_PROMPT_TEMPLATE
+    assert "## GOTCHAS" in INTERMEDIATE_EXTRACTION_PROMPT_TEMPLATE
+
+
+def test_run_capture_lite_respects_disabled_config(tmp_project, monkeypatch):
+    """run_capture(mode='lite') returns without writing when intermediate capture is disabled."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    (tmp_project / "thehook.yaml").write_text("intermediate_capture_enabled: false\n")
+
+    hook_input = json.dumps({
+        "session_id": "test-lite-disabled",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+    monkeypatch.setattr(
+        "thehook.capture.run_claude_extraction",
+        lambda *args, **kwargs: "## SUMMARY\nShould not be written",
+    )
+
+    run_capture(mode="lite")
+    assert list(sessions_dir.glob("*.md")) == []
+
+
+def test_run_capture_lite_throttles_repeated_calls(tmp_project, monkeypatch):
+    """run_capture(mode='lite') skips a second immediate capture due to min interval."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    (tmp_project / "thehook.yaml").write_text("intermediate_capture_min_interval_seconds: 3600\n")
+
+    extraction_calls = []
+
+    def fake_extract(*args, **kwargs):
+        extraction_calls.append(1)
+        return (
+            "## SUMMARY\nIntermediate session.\n\n"
+            "## CONVENTIONS\nNone this session.\n\n"
+            "## DECISIONS\nNone this session.\n\n"
+            "## GOTCHAS\nNone this session."
+        )
+
+    monkeypatch.setattr("thehook.capture.run_claude_extraction", fake_extract)
+
+    payload = json.dumps({
+        "session_id": "test-lite-throttle",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+
+    monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
+    run_capture(mode="lite")
+    monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
+    run_capture(mode="lite")
+
+    assert len(extraction_calls) == 1
+    assert len(list(sessions_dir.glob("*.md"))) == 1
+
+
+def test_run_capture_lite_failure_skips_stub_write(tmp_project, monkeypatch):
+    """run_capture(mode='lite') does not write stub files on extraction failure."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    hook_input = json.dumps({
+        "session_id": "test-lite-failure",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+    monkeypatch.setattr("thehook.capture.run_claude_extraction", lambda *args, **kwargs: None)
+
+    run_capture(mode="lite")
+    assert list(sessions_dir.glob("*.md")) == []

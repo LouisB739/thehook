@@ -61,14 +61,14 @@ your-project/
 │   ├── sessions/     # Captured knowledge (markdown files) — indexed in ChromaDB, shared via git
 │   ├── knowledge/    # Optional consolidated docs (not indexed by default; for future use)
 │   ├── chromadb/     # Search index (local only, gitignored)
-│   └── .gitignore    # Excludes chromadb/
+│   └── .gitignore    # Excludes local runtime artifacts
 ├── .claude/
 │   └── settings.local.json   # Claude Code hooks (auto-configured)
 └── .cursor/
     └── hooks.json             # Cursor hooks (auto-configured)
 ```
 
-That's it. TheHook is now active. It will automatically capture knowledge at the end of each session and inject context at the start.
+That's it. TheHook is now active. It injects memory at session start and before each prompt, captures lightweight memory during long sessions, and captures full structured memory at session end.
 
 ### Team usage
 
@@ -176,7 +176,11 @@ thehook reindex --path /path/to/project
 
 ### `thehook capture`
 
-Called automatically by the SessionEnd hook. Reads the session transcript from stdin, runs LLM extraction, and saves the result. You don't need to call this manually.
+Called automatically by the SessionEnd hook. Reads the session transcript from stdin, runs full LLM extraction, and saves the result. You don't need to call this manually.
+
+### `thehook capture-lite`
+
+Called automatically by Stop/PreCompact hooks. Runs a faster, shorter extraction intended for in-session memory updates. It is throttled and deduplicated to avoid noisy writes.
 
 ### `thehook retrieve`
 
@@ -202,11 +206,25 @@ retrieval_recency_fallback_global: true
 # Number of sessions before auto-consolidation (default: 5)
 consolidation_threshold: 5
 
-# Which hooks are active (default: all three)
+# Enable in-session lightweight memory capture (default: true)
+intermediate_capture_enabled: true
+
+# Timeout for lightweight capture extraction (default: 20)
+intermediate_capture_timeout_seconds: 20
+
+# Minimum seconds between lightweight captures (default: 180)
+intermediate_capture_min_interval_seconds: 180
+
+# Transcript character budget for lightweight capture (default: 12000)
+intermediate_capture_max_transcript_chars: 12000
+
+# Which hooks are active (default: all configured hooks)
 active_hooks:
   - SessionEnd
   - SessionStart
   - UserPromptSubmit
+  - Stop
+  - PreCompact
 ```
 
 All settings are optional — defaults are applied for anything you don't specify.
@@ -243,20 +261,20 @@ These files are plain markdown. You can read, edit, or delete them freely. Run `
 
 ## Supported agents
 
-| Agent | Capture (SessionEnd) | Retrieval (SessionStart) | Manual save/recall |
-|-------|---------------------|-------------------------|-------------------|
-| Claude Code | Auto-configured | Auto-configured | Via CLAUDE.md |
-| Cursor | Auto-configured | Auto-configured | Via rules |
+| Agent | Final Capture (SessionEnd) | Intermediate Capture (Stop/PreCompact) | Retrieval (SessionStart/UserPrompt) | Manual save/recall |
+|-------|-----------------------------|---------------------------------------|-------------------------------------|-------------------|
+| Claude Code | Auto-configured | Auto-configured | Auto-configured | Via CLAUDE.md |
+| Cursor | Auto-configured | Auto-configured | Auto-configured | Via rules |
 
-Both agents are configured automatically by `thehook init`. The hooks call `thehook capture` and `thehook retrieve` behind the scenes.
+Both agents are configured automatically by `thehook init`. The hooks call `thehook capture`, `thehook capture-lite`, and `thehook retrieve` behind the scenes.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────┐
-│         CAPTURE (SessionEnd)        │
-│  transcript → LLM extraction        │
-│  → summary, conventions, decisions  │
+│  CAPTURE (Stop/PreCompact + End)    │
+│  - capture-lite during session      │
+│  - capture full at SessionEnd       │
 └──────────────┬──────────────────────┘
                │ .thehook/sessions/*.md
 ┌──────────────▼──────────────────────┐
@@ -267,7 +285,7 @@ Both agents are configured automatically by `thehook init`. The hooks call `theh
                │ semantic search
 ┌──────────────▼──────────────────────┐
 │         RETRIEVAL                    │
-│  Auto: SessionStart hook            │
+│  Auto: SessionStart + UserPrompt    │
 │  Manual: thehook recall "..."       │
 └─────────────────────────────────────┘
 ```

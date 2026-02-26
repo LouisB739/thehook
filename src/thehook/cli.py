@@ -21,10 +21,24 @@ def init(path):
 
 
 @main.command()
-def capture():
-    """Extract knowledge from the completed session transcript (called by SessionEnd hook)."""
+@click.option(
+    "--mode",
+    type=click.Choice(["full", "lite"], case_sensitive=False),
+    default="full",
+    show_default=True,
+    help="Capture mode. Use 'lite' for low-latency intermediate memory.",
+)
+def capture(mode):
+    """Extract knowledge from transcript (full for SessionEnd, lite for intermediate hooks)."""
     from thehook.capture import run_capture
-    run_capture()
+    run_capture(mode=mode.lower())
+
+
+@main.command("capture-lite")
+def capture_lite():
+    """Low-latency intermediate capture for Stop/PreCompact hooks."""
+    from thehook.capture import run_capture
+    run_capture(mode="lite")
 
 
 @main.command()

@@ -9,7 +9,11 @@ DEFAULT_CONFIG = {
     "retrieval_recency_days": 0,
     "retrieval_recency_fallback_global": True,
     "consolidation_threshold": 5,
-    "active_hooks": ["SessionEnd", "SessionStart", "UserPromptSubmit"],
+    "intermediate_capture_enabled": True,
+    "intermediate_capture_timeout_seconds": 20,
+    "intermediate_capture_min_interval_seconds": 180,
+    "intermediate_capture_max_transcript_chars": 12000,
+    "active_hooks": ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"],
 }
 
 
