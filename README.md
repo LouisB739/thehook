@@ -59,7 +59,7 @@ This creates:
 your-project/
 ├── .thehook/
 │   ├── sessions/     # Captured knowledge (markdown files) — indexed in ChromaDB, shared via git
-│   ├── knowledge/    # Optional consolidated docs (not indexed by default; for future use)
+│   ├── knowledge/    # Auto-consolidated long-term memory docs (indexed in ChromaDB)
 │   ├── chromadb/     # Search index (local only, gitignored)
 │   └── .gitignore    # Excludes local runtime artifacts
 ├── .claude/
@@ -158,7 +158,7 @@ Show how many session/knowledge files you have and how many documents are in the
 ```bash
 thehook status
 # sessions:   48 .md files
-# knowledge:  0 .md files (not indexed by default)
+# knowledge:  0 .md files (indexed when present)
 # chromadb:   48 documents indexed
 # Retrieval:  run 'thehook recall "your query"' to test.
 ```
@@ -203,9 +203,6 @@ retrieval_recency_days: 0
 # If recency filter returns nothing, retry globally (default: true)
 retrieval_recency_fallback_global: true
 
-# Number of sessions before auto-consolidation (default: 5)
-consolidation_threshold: 5
-
 # Enable in-session lightweight memory capture (default: true)
 intermediate_capture_enabled: true
 
@@ -218,6 +215,9 @@ intermediate_capture_min_interval_seconds: 180
 # Transcript character budget for lightweight capture (default: 12000)
 intermediate_capture_max_transcript_chars: 12000
 
+# Enable periodic long-term consolidation (default: true)
+auto_consolidation_enabled: true
+
 # Which hooks are active (default: all configured hooks)
 active_hooks:
   - SessionEnd
@@ -225,6 +225,12 @@ active_hooks:
   - UserPromptSubmit
   - Stop
   - PreCompact
+
+# Number of unconsolidated sessions required before generating a knowledge doc
+consolidation_threshold: 5
+
+# Timeout for consolidation extraction
+consolidation_timeout_seconds: 120
 ```
 
 All settings are optional — defaults are applied for anything you don't specify.
@@ -258,6 +264,8 @@ Implemented the user authentication system with JWT tokens.
 ```
 
 These files are plain markdown. You can read, edit, or delete them freely. Run `thehook reindex` after manual changes to update the search index.
+
+When unconsolidated sessions reach `consolidation_threshold` (default: 5), TheHook also writes a consolidated memory file in `.thehook/knowledge/` and indexes it for retrieval.
 
 ## Supported agents
 

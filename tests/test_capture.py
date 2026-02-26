@@ -575,3 +575,87 @@ def test_run_capture_lite_failure_skips_stub_write(tmp_project, monkeypatch):
 
     run_capture(mode="lite")
     assert list(sessions_dir.glob("*.md")) == []
+
+
+def test_run_capture_full_triggers_auto_consolidation_at_threshold(tmp_project, monkeypatch):
+    """run_capture(full) writes a knowledge doc when pending sessions hit threshold."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+
+    # Seed 4 existing sessions so the new full capture reaches threshold=5.
+    for idx in range(4):
+        existing = (
+            "---\n"
+            f"session_id: seeded-{idx}\n"
+            f"timestamp: 2026-02-24T0{idx}:00:00+00:00\n"
+            f"transcript_path: /tmp/seed-{idx}.jsonl\n"
+            "---\n\n"
+            "## SUMMARY\nSeeded session.\n\n"
+            "## CONVENTIONS\nNone this session.\n\n"
+            "## DECISIONS\nNone this session.\n\n"
+            "## GOTCHAS\nNone this session.\n"
+        )
+        (sessions_dir / f"2026-02-24-seeded-{idx}.md").write_text(existing)
+
+    hook_input = json.dumps({
+        "session_id": "test-consolidation",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+
+    extraction_outputs = [
+        (
+            "## SUMMARY\nFresh session.\n\n"
+            "## CONVENTIONS\n- Keep tests close to feature code.\n\n"
+            "## DECISIONS\n- Use Python for hooks.\n\n"
+            "## GOTCHAS\n- Beware stale caches.\n"
+        ),
+        (
+            "## SUMMARY\nConsolidated memory.\n\n"
+            "## CONVENTIONS\n- Keep tests close to feature code.\n\n"
+            "## DECISIONS\n- Use Python for hooks.\n\n"
+            "## GOTCHAS\n- Beware stale caches.\n"
+        ),
+    ]
+    monkeypatch.setattr(
+        "thehook.capture.run_claude_extraction",
+        lambda *args, **kwargs: extraction_outputs.pop(0),
+    )
+
+    run_capture(mode="full")
+
+    knowledge_files = list((tmp_project / ".thehook" / "knowledge").glob("*.md"))
+    assert len(knowledge_files) == 1
+    text = knowledge_files[0].read_text()
+    assert "type: knowledge" in text
+    assert "source_session_count: 5" in text
+
+
+def test_run_capture_full_skips_consolidation_below_threshold(tmp_project, monkeypatch):
+    """run_capture(full) does not consolidate when pending sessions are below threshold."""
+    fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
+    sessions_dir = tmp_project / ".thehook" / "sessions"
+    sessions_dir.mkdir(parents=True)
+    (tmp_project / "thehook.yaml").write_text("consolidation_threshold: 10\n")
+
+    hook_input = json.dumps({
+        "session_id": "test-no-consolidation",
+        "transcript_path": str(fixture_path),
+        "cwd": str(tmp_project),
+    })
+    monkeypatch.setattr(sys, "stdin", io.StringIO(hook_input))
+    monkeypatch.setattr(
+        "thehook.capture.run_claude_extraction",
+        lambda *args, **kwargs: (
+            "## SUMMARY\nFresh session.\n\n"
+            "## CONVENTIONS\nNone this session.\n\n"
+            "## DECISIONS\nNone this session.\n\n"
+            "## GOTCHAS\nNone this session."
+        ),
+    )
+
+    run_capture(mode="full")
+    knowledge_files = list((tmp_project / ".thehook" / "knowledge").glob("*.md"))
+    assert knowledge_files == []

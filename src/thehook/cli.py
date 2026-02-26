@@ -57,7 +57,7 @@ def status(path):
     n_indexed = get_index_count(project_dir)
 
     click.echo(f"sessions:   {n_sessions} .md files")
-    click.echo(f"knowledge:  {n_knowledge} .md files (not indexed by default)")
+    click.echo(f"knowledge:  {n_knowledge} .md files (indexed when present)")
     click.echo(f"chromadb:   {n_indexed} documents indexed")
     if n_sessions > 0 and n_indexed == 0:
         click.echo("Run 'thehook reindex' to fill ChromaDB from sessions.", err=True)
