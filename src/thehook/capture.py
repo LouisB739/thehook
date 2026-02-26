@@ -17,6 +17,8 @@ INTERMEDIATE_EXTRACTION_TIMEOUT_SECONDS = 20
 INTERMEDIATE_MAX_TRANSCRIPT_CHARS = 12_000
 INTERMEDIATE_MIN_INTERVAL_SECONDS = 180
 INTERMEDIATE_STATE_FILENAME = "intermediate_capture_state.json"
+CONSOLIDATION_TIMEOUT_SECONDS = 120
+CONSOLIDATION_MAX_INPUT_CHARS = 120_000
 
 EXTRACTION_PROMPT_TEMPLATE = """\
 You are a technical knowledge extractor. Analyze the following Claude session transcript and extract concrete, reusable knowledge from it.
@@ -82,6 +84,42 @@ Bullet list of non-obvious issues and mitigations.
 ## Session transcript
 
 {transcript_text}
+"""
+
+CONSOLIDATION_PROMPT_TEMPLATE = """\
+You are consolidating project memory across multiple coding sessions.
+
+Your goal is to produce a cleaner long-term memory artifact from the provided session summaries.
+Keep only durable, reusable knowledge for future development.
+
+Focus on:
+- recurring **conventions** worth standardizing
+- durable **decisions** and rationale
+- repeated or critical **gotchas**
+
+Remove duplicate points and merge overlapping insights.
+
+## Output format
+
+Respond with exactly these four sections. If a section has nothing to report, write "None this period." under it.
+
+## SUMMARY
+1-3 sentences describing what evolved across these sessions.
+
+## CONVENTIONS
+Bullet list of durable conventions that should be followed going forward.
+
+## DECISIONS
+Bullet list of enduring project-level decisions and trade-offs.
+
+## GOTCHAS
+Bullet list of pitfalls that are likely to recur and how to avoid them.
+
+---
+
+## Session memory batch
+
+{session_batch}
 """
 
 
@@ -165,6 +203,138 @@ def _resolve_project_dir(hook_input: dict) -> Path:
     workspace_roots = hook_input.get("workspace_roots", [])
     cwd = hook_input.get("cwd") or (workspace_roots[0] if workspace_roots else ".")
     return Path(cwd)
+
+
+def _load_markdown_frontmatter(path: Path) -> tuple[dict, str] | None:
+    """Load markdown frontmatter and body from a TheHook markdown file."""
+    try:
+        import yaml
+        content = path.read_text()
+        parts = content.split("---", 2)
+        if len(parts) < 3:
+            return None
+        frontmatter = yaml.safe_load(parts[1]) or {}
+        body = parts[2].strip()
+        if not body:
+            return None
+        return frontmatter, body
+    except Exception:
+        return None
+
+
+def _parse_timestamp(value: str) -> datetime:
+    """Parse ISO timestamp with safe fallback for invalid values."""
+    try:
+        return datetime.fromisoformat(str(value))
+    except Exception:
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _collect_pending_sessions_for_consolidation(project_dir: Path) -> list[tuple[dict, str]]:
+    """Return sessions not yet covered by the latest knowledge consolidation."""
+    sessions_dir = project_dir / ".thehook" / "sessions"
+    knowledge_dir = project_dir / ".thehook" / "knowledge"
+    if not sessions_dir.exists():
+        return []
+
+    latest_consolidated_until = datetime.min.replace(tzinfo=timezone.utc)
+    if knowledge_dir.exists():
+        for path in sorted(knowledge_dir.glob("*.md")):
+            parsed = _load_markdown_frontmatter(path)
+            if not parsed:
+                continue
+            fm, _ = parsed
+            consolidated_until = _parse_timestamp(fm.get("consolidated_until", ""))
+            if consolidated_until > latest_consolidated_until:
+                latest_consolidated_until = consolidated_until
+
+    pending: list[tuple[dict, str]] = []
+    for path in sorted(sessions_dir.glob("*.md")):
+        parsed = _load_markdown_frontmatter(path)
+        if not parsed:
+            continue
+        fm, body = parsed
+        ts = _parse_timestamp(fm.get("timestamp", ""))
+        if ts > latest_consolidated_until:
+            pending.append((fm, body))
+    return pending
+
+
+def _assemble_consolidation_batch(pending_sessions: list[tuple[dict, str]]) -> str:
+    """Build the input batch for consolidation prompt with bounded size."""
+    chunks = []
+    total = 0
+    for fm, body in pending_sessions:
+        session_id = fm.get("session_id", "unknown")
+        timestamp = fm.get("timestamp", "")
+        chunk = f"[SESSION {session_id} @ {timestamp}]\n{body}\n"
+        if total + len(chunk) > CONSOLIDATION_MAX_INPUT_CHARS:
+            remaining = CONSOLIDATION_MAX_INPUT_CHARS - total
+            if remaining > 0:
+                chunks.append(chunk[:remaining])
+            break
+        chunks.append(chunk)
+        total += len(chunk)
+    return "\n\n---\n\n".join(chunks)
+
+
+def _write_knowledge_file(project_dir: Path, pending_sessions: list[tuple[dict, str]], content: str) -> Path:
+    """Write one consolidated knowledge markdown document."""
+    knowledge_dir = project_dir / ".thehook" / "knowledge"
+    knowledge_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+    date_part = timestamp[:10]
+    knowledge_id = f"knowledge-{date_part}-{str(int(time.time()))}"
+    latest_ts = ""
+    source_ids = []
+    for fm, _ in pending_sessions:
+        source_ids.append(str(fm.get("session_id", "")))
+        raw_ts = str(fm.get("timestamp", ""))
+        if raw_ts and raw_ts > latest_ts:
+            latest_ts = raw_ts
+
+    frontmatter = (
+        "---\n"
+        f"knowledge_id: {knowledge_id}\n"
+        "type: knowledge\n"
+        f"timestamp: {timestamp}\n"
+        f"consolidated_until: {latest_ts}\n"
+        f"source_session_count: {len(pending_sessions)}\n"
+        f"source_session_ids: {source_ids}\n"
+        "---\n\n"
+    )
+    output_path = knowledge_dir / f"{date_part}-{knowledge_id}.md"
+    output_path.write_text(frontmatter + content)
+    return output_path
+
+
+def run_auto_consolidation(project_dir: Path, config: dict) -> None:
+    """Consolidate accumulated session memory into .thehook/knowledge periodically."""
+    if not bool(config.get("auto_consolidation_enabled", True)):
+        return
+
+    threshold = max(1, int(config.get("consolidation_threshold", 5)))
+    pending_sessions = _collect_pending_sessions_for_consolidation(project_dir)
+    if len(pending_sessions) < threshold:
+        return
+
+    batch = _assemble_consolidation_batch(pending_sessions)
+    if not batch.strip():
+        return
+
+    timeout = int(config.get("consolidation_timeout_seconds", CONSOLIDATION_TIMEOUT_SECONDS))
+    prompt = CONSOLIDATION_PROMPT_TEMPLATE.format(session_batch=batch)
+    consolidated = run_claude_extraction(prompt, timeout_seconds=timeout)
+    if not consolidated:
+        return
+
+    knowledge_path = _write_knowledge_file(project_dir, pending_sessions, consolidated)
+    try:
+        from thehook.storage import index_markdown_file
+        index_markdown_file(project_dir, knowledge_path, default_type="knowledge")
+    except Exception:
+        pass
 
 
 def read_hook_input() -> dict:
@@ -456,6 +626,11 @@ def run_capture(mode: Literal["full", "lite"] = "full") -> None:
     if result:
         session_path = write_session_file(sessions_dir, session_id, transcript_path, result)
         _index_session_file(project_dir, session_path)
+        if mode == "full":
+            try:
+                run_auto_consolidation(project_dir, config)
+            except Exception:
+                pass
         if mode == "lite":
             _mark_intermediate_capture(project_dir, str(session_id), transcript_hash)
     else:

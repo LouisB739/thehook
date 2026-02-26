@@ -20,6 +20,61 @@ def get_chroma_client(project_dir: Path):
     return chromadb.PersistentClient(path=str(chroma_path))
 
 
+def _parse_markdown_file(path: Path) -> tuple[dict, str] | None:
+    """Parse TheHook markdown file and return (frontmatter, body)."""
+    import yaml
+
+    content = path.read_text()
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return None
+    fm = yaml.safe_load(parts[1]) or {}
+    body = parts[2].strip()
+    if not body:
+        return None
+    return fm, body
+
+
+def _normalize_timestamp(raw_ts) -> str:
+    if hasattr(raw_ts, "isoformat"):
+        return raw_ts.isoformat()
+    return str(raw_ts)
+
+
+def _build_doc_id(frontmatter: dict, fallback_stem: str, default_type: str) -> str:
+    if default_type == "knowledge":
+        return frontmatter.get("knowledge_id") or fallback_stem
+    return frontmatter.get("session_id") or fallback_stem
+
+
+def index_markdown_file(project_dir: Path, path: Path, default_type: str = "session") -> None:
+    """Upsert a TheHook markdown document into ChromaDB.
+
+    Supports both session docs and consolidated knowledge docs.
+    """
+    parsed = _parse_markdown_file(path)
+    if not parsed:
+        return
+
+    frontmatter, body = parsed
+    doc_type = frontmatter.get("type") or default_type
+    doc_id = _build_doc_id(frontmatter, path.stem, default_type)
+    timestamp = _normalize_timestamp(frontmatter.get("timestamp", ""))
+
+    metadata = {
+        "type": str(doc_type),
+        "timestamp": timestamp,
+    }
+    if "session_id" in frontmatter:
+        metadata["session_id"] = str(frontmatter.get("session_id"))
+    if "knowledge_id" in frontmatter:
+        metadata["knowledge_id"] = str(frontmatter.get("knowledge_id"))
+
+    client = get_chroma_client(project_dir)
+    collection = client.get_or_create_collection(COLLECTION_NAME)
+    collection.upsert(documents=[body], metadatas=[metadata], ids=[str(doc_id)])
+
+
 def index_session_file(project_dir: Path, session_path: Path) -> None:
     """Add a session markdown file to the ChromaDB index.
 
@@ -39,38 +94,7 @@ def index_session_file(project_dir: Path, session_path: Path) -> None:
         project_dir: Project root directory (contains .thehook/).
         session_path: Path to the session .md file to index.
     """
-    import yaml
-
-    content = session_path.read_text()
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        return  # malformed: no frontmatter delimiters
-
-    fm = yaml.safe_load(parts[1]) or {}
-    body = parts[2].strip()
-    if not body:
-        return  # empty body — skip to avoid bad embeddings
-
-    session_id = fm.get("session_id") or session_path.stem
-    raw_ts = fm.get("timestamp", "")
-    # PyYAML parses ISO 8601 timestamps as datetime objects; use isoformat() to
-    # round-trip back to the canonical string form (preserves the 'T' separator).
-    if hasattr(raw_ts, "isoformat"):
-        timestamp = raw_ts.isoformat()
-    else:
-        timestamp = str(raw_ts)
-
-    client = get_chroma_client(project_dir)
-    collection = client.get_or_create_collection(COLLECTION_NAME)
-    collection.upsert(
-        documents=[body],
-        metadatas=[{
-            "session_id": session_id,
-            "type": "session",
-            "timestamp": timestamp,
-        }],
-        ids=[session_id],
-    )
+    index_markdown_file(project_dir, session_path, default_type="session")
 
 
 def reindex(project_dir: Path) -> int:
@@ -94,8 +118,6 @@ def reindex(project_dir: Path) -> int:
     Returns:
         int: Number of session files successfully indexed.
     """
-    import yaml
-
     client = get_chroma_client(project_dir)
 
     # Drop existing collection to start fresh
@@ -107,44 +129,41 @@ def reindex(project_dir: Path) -> int:
     collection = client.get_or_create_collection(COLLECTION_NAME)
 
     sessions_dir = project_dir / ".thehook" / "sessions"
-    if not sessions_dir.exists():
-        return 0
-
-    md_files = sorted(sessions_dir.glob("*.md"))
-    if not md_files:
-        return 0
+    knowledge_dir = project_dir / ".thehook" / "knowledge"
 
     documents = []
     metadatas = []
     ids = []
 
-    for md_file in md_files:
-        content = md_file.read_text()
-        parts = content.split("---", 2)
-        if len(parts) < 3:
-            continue  # malformed, skip
+    all_files: list[tuple[Path, str]] = []
+    if sessions_dir.exists():
+        all_files.extend((path, "session") for path in sorted(sessions_dir.glob("*.md")))
+    if knowledge_dir.exists():
+        all_files.extend((path, "knowledge") for path in sorted(knowledge_dir.glob("*.md")))
+    if not all_files:
+        return 0
 
-        fm = yaml.safe_load(parts[1]) or {}
-        body = parts[2].strip()
-        if not body:
-            continue  # empty body, skip
+    for md_file, default_type in all_files:
+        parsed = _parse_markdown_file(md_file)
+        if not parsed:
+            continue
+        fm, body = parsed
+        doc_type = fm.get("type") or default_type
+        doc_id = _build_doc_id(fm, md_file.stem, default_type)
+        timestamp = _normalize_timestamp(fm.get("timestamp", ""))
 
-        session_id = fm.get("session_id") or md_file.stem
-        raw_ts = fm.get("timestamp", "")
-        # PyYAML parses ISO 8601 timestamps as datetime objects; use isoformat() to
-        # round-trip back to the canonical string form (preserves the 'T' separator).
-        if hasattr(raw_ts, "isoformat"):
-            timestamp = raw_ts.isoformat()
-        else:
-            timestamp = str(raw_ts)
+        metadata = {
+            "type": str(doc_type),
+            "timestamp": timestamp,
+        }
+        if "session_id" in fm:
+            metadata["session_id"] = str(fm.get("session_id"))
+        if "knowledge_id" in fm:
+            metadata["knowledge_id"] = str(fm.get("knowledge_id"))
 
         documents.append(body)
-        metadatas.append({
-            "session_id": session_id,
-            "type": "session",
-            "timestamp": timestamp,
-        })
-        ids.append(session_id)
+        metadatas.append(metadata)
+        ids.append(str(doc_id))
 
     if documents:
         collection.add(documents=documents, metadatas=metadatas, ids=ids)

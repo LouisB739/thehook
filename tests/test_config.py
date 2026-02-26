@@ -15,6 +15,8 @@ def test_load_config_no_yaml_returns_defaults(tmp_project):
     assert config["intermediate_capture_timeout_seconds"] == 20
     assert config["intermediate_capture_min_interval_seconds"] == 180
     assert config["intermediate_capture_max_transcript_chars"] == 12000
+    assert config["auto_consolidation_enabled"] is True
+    assert config["consolidation_timeout_seconds"] == 120
     assert config["active_hooks"] == ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"]
 
 
@@ -31,6 +33,8 @@ def test_load_config_full_yaml_overrides_all(tmp_project):
         "intermediate_capture_timeout_seconds: 7\n"
         "intermediate_capture_min_interval_seconds: 600\n"
         "intermediate_capture_max_transcript_chars: 5000\n"
+        "auto_consolidation_enabled: false\n"
+        "consolidation_timeout_seconds: 45\n"
         "active_hooks:\n"
         "  - SessionEnd\n"
     )
@@ -45,6 +49,8 @@ def test_load_config_full_yaml_overrides_all(tmp_project):
     assert config["intermediate_capture_timeout_seconds"] == 7
     assert config["intermediate_capture_min_interval_seconds"] == 600
     assert config["intermediate_capture_max_transcript_chars"] == 5000
+    assert config["auto_consolidation_enabled"] is False
+    assert config["consolidation_timeout_seconds"] == 45
     assert config["active_hooks"] == ["SessionEnd"]
 
 
@@ -62,6 +68,8 @@ def test_load_config_partial_yaml_merges_with_defaults(tmp_project):
     assert config["intermediate_capture_timeout_seconds"] == 20
     assert config["intermediate_capture_min_interval_seconds"] == 180
     assert config["intermediate_capture_max_transcript_chars"] == 12000
+    assert config["auto_consolidation_enabled"] is True
+    assert config["consolidation_timeout_seconds"] == 120
     assert config["active_hooks"] == ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"]
 
 
@@ -79,6 +87,8 @@ def test_load_config_empty_yaml_returns_defaults(tmp_project):
     assert config["intermediate_capture_timeout_seconds"] == 20
     assert config["intermediate_capture_min_interval_seconds"] == 180
     assert config["intermediate_capture_max_transcript_chars"] == 12000
+    assert config["auto_consolidation_enabled"] is True
+    assert config["consolidation_timeout_seconds"] == 120
     assert config["active_hooks"] == ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"]
 
 
@@ -106,4 +116,6 @@ def test_load_config_does_not_mutate_defaults(tmp_project):
     assert DEFAULT_CONFIG["intermediate_capture_timeout_seconds"] == 20
     assert DEFAULT_CONFIG["intermediate_capture_min_interval_seconds"] == 180
     assert DEFAULT_CONFIG["intermediate_capture_max_transcript_chars"] == 12000
+    assert DEFAULT_CONFIG["auto_consolidation_enabled"] is True
+    assert DEFAULT_CONFIG["consolidation_timeout_seconds"] == 120
     assert DEFAULT_CONFIG["active_hooks"] == ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"]

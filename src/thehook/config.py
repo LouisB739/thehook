@@ -13,7 +13,9 @@ DEFAULT_CONFIG = {
     "intermediate_capture_timeout_seconds": 20,
     "intermediate_capture_min_interval_seconds": 180,
     "intermediate_capture_max_transcript_chars": 12000,
+    "auto_consolidation_enabled": True,
     "active_hooks": ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"],
+    "consolidation_timeout_seconds": 120,
 }
 
 
