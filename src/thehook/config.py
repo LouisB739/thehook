@@ -4,16 +4,16 @@ import yaml
 
 
 DEFAULT_CONFIG = {
-    "token_budget": 2000,
+    "token_budget": 1000,
     "retrieval_n_results": 5,
     "retrieval_recency_days": 0,
     "retrieval_recency_fallback_global": True,
     "consolidation_threshold": 5,
-    "intermediate_capture_enabled": True,
+    "intermediate_capture_enabled": False,
     "intermediate_capture_timeout_seconds": 20,
-    "intermediate_capture_min_interval_seconds": 180,
+    "intermediate_capture_min_interval_seconds": 600,
     "intermediate_capture_max_transcript_chars": 12000,
-    "active_hooks": ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"],
+    "active_hooks": ["SessionEnd", "SessionStart", "Stop"],
 }
 
 

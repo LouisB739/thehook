@@ -68,7 +68,7 @@ your-project/
     └── hooks.json             # Cursor hooks (auto-configured)
 ```
 
-That's it. TheHook is now active. It injects memory at session start and before each prompt, captures lightweight memory during long sessions, and captures full structured memory at session end.
+That's it. TheHook is now active. It injects memory at session start and captures full structured memory at session end. You can opt into additional hooks (per-prompt retrieval, intermediate capture) via `thehook.yaml` if needed.
 
 ### Team usage
 
@@ -191,8 +191,8 @@ Called automatically by SessionStart and UserPromptSubmit hooks. Queries the ind
 Create a `thehook.yaml` at your project root to customize behavior:
 
 ```yaml
-# Maximum tokens of context to inject at session start (default: 2000)
-token_budget: 2000
+# Maximum tokens of context to inject at session start (default: 1000)
+token_budget: 1000
 
 # Maximum number of documents returned by retrieval (default: 5)
 retrieval_n_results: 5
@@ -206,25 +206,27 @@ retrieval_recency_fallback_global: true
 # Number of sessions before auto-consolidation (default: 5)
 consolidation_threshold: 5
 
-# Enable in-session lightweight memory capture (default: true)
-intermediate_capture_enabled: true
+# Enable in-session lightweight memory capture (default: false)
+intermediate_capture_enabled: false
 
 # Timeout for lightweight capture extraction (default: 20)
 intermediate_capture_timeout_seconds: 20
 
-# Minimum seconds between lightweight captures (default: 180)
-intermediate_capture_min_interval_seconds: 180
+# Minimum seconds between lightweight captures (default: 600)
+intermediate_capture_min_interval_seconds: 600
 
 # Transcript character budget for lightweight capture (default: 12000)
 intermediate_capture_max_transcript_chars: 12000
 
-# Which hooks are active (default: all configured hooks)
+# Which hooks are active (default: lean set — SessionEnd + SessionStart + Stop)
 active_hooks:
   - SessionEnd
   - SessionStart
-  - UserPromptSubmit
   - Stop
-  - PreCompact
+
+# Additional hooks you can opt into:
+#  - UserPromptSubmit: retrieve context on every prompt (token-heavy)
+#  - PreCompact: capture-lite before context compaction (redundant with Stop)
 ```
 
 All settings are optional — defaults are applied for anything you don't specify.

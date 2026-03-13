@@ -6,16 +6,16 @@ def test_load_config_no_yaml_returns_defaults(tmp_project):
     """No thehook.yaml exists; load_config returns exact defaults."""
     from thehook.config import load_config
     config = load_config(tmp_project)
-    assert config["token_budget"] == 2000
+    assert config["token_budget"] == 1000
     assert config["retrieval_n_results"] == 5
     assert config["retrieval_recency_days"] == 0
     assert config["retrieval_recency_fallback_global"] is True
     assert config["consolidation_threshold"] == 5
-    assert config["intermediate_capture_enabled"] is True
+    assert config["intermediate_capture_enabled"] is False
     assert config["intermediate_capture_timeout_seconds"] == 20
-    assert config["intermediate_capture_min_interval_seconds"] == 180
+    assert config["intermediate_capture_min_interval_seconds"] == 600
     assert config["intermediate_capture_max_transcript_chars"] == 12000
-    assert config["active_hooks"] == ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"]
+    assert config["active_hooks"] == ["SessionEnd", "SessionStart", "Stop"]
 
 
 def test_load_config_full_yaml_overrides_all(tmp_project):
@@ -58,11 +58,11 @@ def test_load_config_partial_yaml_merges_with_defaults(tmp_project):
     assert config["retrieval_recency_days"] == 0
     assert config["retrieval_recency_fallback_global"] is True
     assert config["consolidation_threshold"] == 5
-    assert config["intermediate_capture_enabled"] is True
+    assert config["intermediate_capture_enabled"] is False
     assert config["intermediate_capture_timeout_seconds"] == 20
-    assert config["intermediate_capture_min_interval_seconds"] == 180
+    assert config["intermediate_capture_min_interval_seconds"] == 600
     assert config["intermediate_capture_max_transcript_chars"] == 12000
-    assert config["active_hooks"] == ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"]
+    assert config["active_hooks"] == ["SessionEnd", "SessionStart", "Stop"]
 
 
 def test_load_config_empty_yaml_returns_defaults(tmp_project):
@@ -70,16 +70,16 @@ def test_load_config_empty_yaml_returns_defaults(tmp_project):
     from thehook.config import load_config
     (tmp_project / "thehook.yaml").write_text("")
     config = load_config(tmp_project)
-    assert config["token_budget"] == 2000
+    assert config["token_budget"] == 1000
     assert config["retrieval_n_results"] == 5
     assert config["retrieval_recency_days"] == 0
     assert config["retrieval_recency_fallback_global"] is True
     assert config["consolidation_threshold"] == 5
-    assert config["intermediate_capture_enabled"] is True
+    assert config["intermediate_capture_enabled"] is False
     assert config["intermediate_capture_timeout_seconds"] == 20
-    assert config["intermediate_capture_min_interval_seconds"] == 180
+    assert config["intermediate_capture_min_interval_seconds"] == 600
     assert config["intermediate_capture_max_transcript_chars"] == 12000
-    assert config["active_hooks"] == ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"]
+    assert config["active_hooks"] == ["SessionEnd", "SessionStart", "Stop"]
 
 
 def test_load_config_does_not_mutate_defaults(tmp_project):
@@ -94,16 +94,16 @@ def test_load_config_does_not_mutate_defaults(tmp_project):
     import tempfile
     with tempfile.TemporaryDirectory() as other_dir:
         config2 = load_config(Path(other_dir))
-    assert config2["token_budget"] == 2000
+    assert config2["token_budget"] == 1000
 
     # DEFAULT_CONFIG itself must not be mutated
-    assert DEFAULT_CONFIG["token_budget"] == 2000
+    assert DEFAULT_CONFIG["token_budget"] == 1000
     assert DEFAULT_CONFIG["retrieval_n_results"] == 5
     assert DEFAULT_CONFIG["retrieval_recency_days"] == 0
     assert DEFAULT_CONFIG["retrieval_recency_fallback_global"] is True
     assert DEFAULT_CONFIG["consolidation_threshold"] == 5
-    assert DEFAULT_CONFIG["intermediate_capture_enabled"] is True
+    assert DEFAULT_CONFIG["intermediate_capture_enabled"] is False
     assert DEFAULT_CONFIG["intermediate_capture_timeout_seconds"] == 20
-    assert DEFAULT_CONFIG["intermediate_capture_min_interval_seconds"] == 180
+    assert DEFAULT_CONFIG["intermediate_capture_min_interval_seconds"] == 600
     assert DEFAULT_CONFIG["intermediate_capture_max_transcript_chars"] == 12000
-    assert DEFAULT_CONFIG["active_hooks"] == ["SessionEnd", "SessionStart", "UserPromptSubmit", "Stop", "PreCompact"]
+    assert DEFAULT_CONFIG["active_hooks"] == ["SessionEnd", "SessionStart", "Stop"]
