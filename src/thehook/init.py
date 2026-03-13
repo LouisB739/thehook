@@ -108,14 +108,16 @@ CURSOR_HOOK_CONFIG = {
 
 def _load_active_hooks(project_dir: Path) -> list[str]:
     """Load active hook names from config with safe defaults."""
+    from thehook.config import DEFAULT_CONFIG
+    default_hooks = list(DEFAULT_CONFIG["active_hooks"])
     try:
         from thehook.config import load_config
         config = load_config(project_dir)
     except Exception:
-        return list(HOOK_CONFIG.keys())
+        return default_hooks
     active_hooks = config.get("active_hooks")
     if not isinstance(active_hooks, list) or not active_hooks:
-        return list(HOOK_CONFIG.keys())
+        return default_hooks
     return [str(name) for name in active_hooks]
 
 

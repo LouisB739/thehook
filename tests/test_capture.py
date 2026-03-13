@@ -529,7 +529,10 @@ def test_run_capture_lite_throttles_repeated_calls(tmp_project, monkeypatch):
     fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
     sessions_dir = tmp_project / ".thehook" / "sessions"
     sessions_dir.mkdir(parents=True)
-    (tmp_project / "thehook.yaml").write_text("intermediate_capture_min_interval_seconds: 3600\n")
+    (tmp_project / "thehook.yaml").write_text(
+        "intermediate_capture_enabled: true\n"
+        "intermediate_capture_min_interval_seconds: 3600\n"
+    )
 
     extraction_calls = []
 
@@ -564,6 +567,7 @@ def test_run_capture_lite_failure_skips_stub_write(tmp_project, monkeypatch):
     fixture_path = Path(__file__).parent / "fixtures" / "sample_transcript.jsonl"
     sessions_dir = tmp_project / ".thehook" / "sessions"
     sessions_dir.mkdir(parents=True)
+    (tmp_project / "thehook.yaml").write_text("intermediate_capture_enabled: true\n")
 
     hook_input = json.dumps({
         "session_id": "test-lite-failure",
