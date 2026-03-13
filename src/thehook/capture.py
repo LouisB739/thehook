@@ -15,7 +15,7 @@ MAX_TRANSCRIPT_CHARS = 50_000
 EXTRACTION_TIMEOUT_SECONDS = 85
 INTERMEDIATE_EXTRACTION_TIMEOUT_SECONDS = 20
 INTERMEDIATE_MAX_TRANSCRIPT_CHARS = 12_000
-INTERMEDIATE_MIN_INTERVAL_SECONDS = 180
+INTERMEDIATE_MIN_INTERVAL_SECONDS = 600
 INTERMEDIATE_STATE_FILENAME = "intermediate_capture_state.json"
 
 EXTRACTION_PROMPT_TEMPLATE = """\
@@ -425,7 +425,7 @@ def run_capture(mode: Literal["full", "lite"] = "full") -> None:
         return
 
     if mode == "lite":
-        if not bool(config.get("intermediate_capture_enabled", True)):
+        if not bool(config.get("intermediate_capture_enabled", False)):
             return
         max_chars = int(config.get("intermediate_capture_max_transcript_chars", INTERMEDIATE_MAX_TRANSCRIPT_CHARS))
         timeout_seconds = int(config.get("intermediate_capture_timeout_seconds", INTERMEDIATE_EXTRACTION_TIMEOUT_SECONDS))
